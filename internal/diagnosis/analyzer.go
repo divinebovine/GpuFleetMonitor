@@ -1,0 +1,138 @@
+package diagnosis
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/divinebovine/gpu-monitor/internal/gpu"
+)
+
+const (
+	memoryTempWarning         = 85.0
+	memoryTempCritical        = 95.0
+	eccSingleBitCountWarning  = 6
+	eccDoubleBitCountCritical = 1
+	highPowerUtilization      = 95 // percent
+	lowGpuUtilization         = 5  // percent
+)
+
+func Analyze(health *gpu.GpuHealth) *Diagnosis {
+	var findings = GenerateFindings(health)
+
+	var diagnosis = new(Diagnosis)
+	diagnosis.ID = fmt.Sprintf("diag-%s", health.GpuId)
+	diagnosis.GpuId = health.GpuId
+	diagnosis.Timestamp = time.Now().UTC()
+	diagnosis.Severity = GetWorstSeverity(findings)
+	diagnosis.Findings = findings
+	diagnosis.Recommendation = GetRecommendation(diagnosis.Severity)
+
+	return diagnosis
+}
+
+func GenerateFindings(health *gpu.GpuHealth) []Finding {
+	var findings []Finding
+
+	// check gpu core temperature
+	switch {
+	case health.Temperature.GpuCoreCelsius >= health.Temperature.CriticalThreshold:
+		findings = append(findings, Finding{
+			Code:        "HIGH_TEMPERATURE",
+			Description: fmt.Sprintf("GPU Core Temperature Critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GpuCoreCelsius, health.Temperature.CriticalThreshold),
+			Severity:    SeverityCritical,
+		})
+	case health.Temperature.GpuCoreCelsius >= health.Temperature.WarningThreshold:
+		findings = append(findings, Finding{
+			Code:        "HIGH_TEMPERATURE",
+			Description: fmt.Sprintf("GPU Core Temperature Warning - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GpuCoreCelsius, health.Temperature.WarningThreshold),
+			Severity:    SeverityMedium,
+		})
+	}
+
+	// check memory temperature
+	switch {
+	case health.Temperature.MemoryCelsius >= memoryTempCritical:
+		findings = append(findings, Finding{
+			Code:        "HIGH_TEMPERATURE",
+			Description: fmt.Sprintf("Memory temperature critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.MemoryCelsius, memoryTempCritical),
+			Severity:    SeverityCritical,
+		})
+	case health.Temperature.MemoryCelsius >= memoryTempWarning:
+		findings = append(findings, Finding{
+			Code:        "HIGH_TEMPERATURE",
+			Description: fmt.Sprintf("Memory core temperature warning - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.MemoryCelsius, memoryTempWarning),
+			Severity:    SeverityMedium,
+		})
+	}
+
+	// check memory errors
+	if health.Memory.EccSingleBitErrors >= eccSingleBitCountWarning {
+		findings = append(findings, Finding{
+			Code:        "ECC_SINGLE_BIT_ERRORS",
+			Description: fmt.Sprintf("ECC single bit errors warning - %d errors detected which exceeds the acceptable threshold of %d errors", health.Memory.EccSingleBitErrors, eccSingleBitCountWarning),
+			Severity:    SeverityMedium,
+		})
+	}
+
+	if health.Memory.ECCDoubleBitErrors >= eccDoubleBitCountCritical {
+		findings = append(findings, Finding{
+			Code:        "ECC_DOUBLE_BIT_ERROR",
+			Description: fmt.Sprintf("ECC double bit errors critical - %d errors detected which exceeds the acceptable threshold of %d errors", health.Memory.ECCDoubleBitErrors, eccDoubleBitCountCritical),
+			Severity:    SeverityCritical,
+		})
+	}
+
+	// check power
+	if health.Power.Utilization >= highPowerUtilization {
+		findings = append(findings, Finding{
+			Code:        "POWER_LIMIT_APPROACHED",
+			Description: fmt.Sprintf("Power draw high - drawing %.1f watts which exceeds the acceptable limit of %.1f watts", health.Power.DrawWatts, health.Power.LimitWatts),
+			Severity:    SeverityHigh,
+		})
+	}
+
+	// check gpu utililization
+	if health.Utilization <= lowGpuUtilization {
+		findings = append(findings, Finding{
+			Code:        "LOW_GPU_UTILIZATION",
+			Description: fmt.Sprintf("GPU utilization low - GPU utilization %.1f%% which is under the acceptable limit of %.1f%%", health.Utilization, lowGpuUtilization),
+			Severity:    SeverityMedium,
+		})
+	}
+
+	return findings
+}
+
+func GetWorstSeverity(findings []Finding) Severity {
+	isWorseThan := func(a Severity, b Severity) bool {
+		order := map[Severity]int{
+			SeverityLow:      1,
+			SeverityMedium:   2,
+			SeverityHigh:     3,
+			SeverityCritical: 4,
+		}
+		return order[a] > order[b]
+	}
+
+	worstSeverity := SeverityLow
+	for _, finding := range findings {
+		if isWorseThan(finding.Severity, worstSeverity) {
+			worstSeverity = finding.Severity
+		}
+	}
+
+	return worstSeverity
+}
+
+func GetRecommendation(severity Severity) string {
+	switch severity {
+	default:
+		return "No action required. Continue routine monitoring."
+	case SeverityMedium:
+		return "Flag for review at next maintenance window. Continue monitoring."
+	case SeverityHigh:
+		return "Schedule maintenance within 24 hours. Monitor closely for deterioration."
+	case SeverityCritical:
+		return "Immediate intervention required. Remove GPU from service and inspect hardware."
+	}
+}
