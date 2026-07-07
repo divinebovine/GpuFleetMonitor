@@ -40,8 +40,6 @@ internal/
 ## Running
 
 ```bash
-export GOTOOLCHAIN=local   # required — system has Go 1.22, go.mod targets 1.22
-
 # Telemetry service
 go run ./cmd/telemetry/
 
