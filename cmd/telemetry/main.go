@@ -17,7 +17,7 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP) // Pick the correct middleware for your setup
 	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	r.Use(middleware.Recoverer) // Recovers from panics
 
 	// Set a timeout for the context
 	r.Use(middleware.Timeout(60 * time.Second))
@@ -37,7 +37,7 @@ func getGpuHandler(w http.ResponseWriter, r *http.Request) {
 	gpuHealth, err := gpu.GetHealth(id)
 
 	if err != nil {
-		http.Error(w, http.StatusText(400), 400) // just use bad request for now
+		http.NotFound(w, r) // just use not found for now
 		return
 	}
 
