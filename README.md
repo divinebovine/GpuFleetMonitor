@@ -13,13 +13,13 @@ cmd/
 
 internal/
   gpu/
-    model.go            → GpuHealth, Temperature, Memory, Power structs
-    simulator.go        → GetHealth(gpuId) — deterministic simulation
+    model.go            → GPUHealth, Temperature, Memory, Power structs
+    simulator.go        → GetHealth(gpuID) — deterministic simulation
     specs.go            → Per-model specs (power/temp ranges, memory size)
   diagnosis/
     model.go            → Diagnosis, Finding, Severity structs
-    analyzer.go         → Analyze(*gpu.GpuHealth) — in progress
-    store.go            → In-memory diagnosis store — in progress
+    analyzer.go         → Analyze(*gpu.GPUHealth) — returns *Diagnosis
+    store.go            → Thread-safe in-memory diagnosis store
   escalation/           → Not started
   temporal/             → Not started
 ```
@@ -46,38 +46,28 @@ go run ./cmd/telemetry/
 # Test it
 curl http://localhost:3000/v1/gpus/GPU-00001
 curl http://localhost:3000/v1/gpus/GPU-00005   # critical GPU
+
+# Diagnosis service
+go run ./cmd/diagnosis/
+
+# Test it
+curl -X POST http://localhost:8081/v1/diagnose/GPU-00005
+curl http://localhost:8081/v1/diagnose/diag-GPU-00005
+curl http://localhost:8081/v1/diagnoses
 ```
 
 ## What's Done
 
-- [x] `internal/gpu` — model, simulator, specs (compiles and runs)
-- [x] `cmd/telemetry` — HTTP server with `GET /v1/gpus/{id}` (working)
-- [x] `internal/diagnosis/model.go` — Diagnosis and Finding structs
+- [x] `internal/gpu` — model, simulator, specs
+- [x] `cmd/telemetry` — `GET /v1/gpus/{id}`
+- [x] `internal/diagnosis` — model, analyzer, store
+- [x] `cmd/diagnosis` — `POST /v1/diagnose/{gpu_id}`, `GET /v1/diagnose/{id}`, `GET /v1/diagnoses`
 
 ## What's Next
 
-1. `internal/diagnosis/analyzer.go` — analyze a `*gpu.GpuHealth` and return a `*Diagnosis`
-   - Check temperature against warning/critical thresholds → findings
-   - Check ECC errors → findings
-   - Check power utilization → findings
-   - Check GPU utilization (very low may indicate stuck GPU) → findings
-   - Roll up worst severity across findings
-   - Generate a recommendation string
+1. Escalation service (`internal/escalation/`, `cmd/escalation/`)
 
-2. `internal/diagnosis/store.go` — thread-safe in-memory store
-   - `Save(*Diagnosis)`
-   - `GetByID(id string) (*Diagnosis, bool)`
-   - `List() []*Diagnosis`
-   - Use `sync.Mutex` to protect concurrent access
-
-3. `cmd/diagnosis/main.go` — HTTP server on :8081
-   - `POST /v1/diagnose/{gpu_id}` — fetch health, run analyzer, save, return diagnosis
-   - `GET /v1/diagnoses/{id}` — retrieve saved diagnosis
-   - `GET /v1/diagnoses` — list all diagnoses
-
-4. Escalation service (`internal/escalation/`, `cmd/escalation/`)
-
-5. Temporal worker (`internal/temporal/`, `cmd/worker/`)
+2. Temporal worker (`internal/temporal/`, `cmd/worker/`)
 
 ## Dependencies
 
