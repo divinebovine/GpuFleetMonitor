@@ -16,13 +16,13 @@ const (
 	lowGpuUtilization         = 5.0  // percent
 )
 
-func Analyze(health *gpu.GPUHealth) *Diagnosis {
-	var findings = GenerateFindings(health)
+func Analyze(health *gpu.GPUHealth, ts time.Time) *Diagnosis {
+	var findings = generateFindings(health)
 
 	var diagnosis = new(Diagnosis)
 	diagnosis.ID = fmt.Sprintf("diag-%s", health.GPUID)
 	diagnosis.GPUID = health.GPUID
-	diagnosis.Timestamp = time.Now().UTC()
+	diagnosis.Timestamp = ts
 	diagnosis.Severity = GetWorstSeverity(findings)
 	diagnosis.Findings = findings
 	diagnosis.Recommendation = GetRecommendation(diagnosis.Severity)
@@ -30,7 +30,7 @@ func Analyze(health *gpu.GPUHealth) *Diagnosis {
 	return diagnosis
 }
 
-func GenerateFindings(health *gpu.GPUHealth) []Finding {
+func generateFindings(health *gpu.GPUHealth) []Finding {
 	var findings []Finding
 
 	// check gpu core temperature

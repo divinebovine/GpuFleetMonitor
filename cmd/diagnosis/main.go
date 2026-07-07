@@ -24,7 +24,7 @@ func (h *handler) postDiagnosis(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	d := diagnosis.Analyze(health)
+	d := diagnosis.Analyze(health, time.Now().UTC())
 	h.store.Save(d)
 
 	w.Header().Set("Content-Type", "application/json")
