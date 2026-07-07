@@ -11,7 +11,7 @@ const (
 )
 
 type Temperature struct {
-	GpuCoreCelsius    float64 `json:"gpu_core_celsius"`
+	GPUCoreCelsius    float64 `json:"gpu_core_celsius"`
 	MemoryCelsius     float64 `json:"memory_celsius"`
 	WarningThreshold  float64 `json:"warning_threshold"`
 	CriticalThreshold float64 `json:"critical_threshold"`
@@ -23,7 +23,7 @@ type Memory struct {
 	UsedBytes          uint64  `json:"used_bytes"`
 	FreeBytes          uint64  `json:"free_bytes"`
 	Utilization        float64 `json:"utilization"`
-	EccSingleBitErrors uint8   `json:"ecc_single_bit_errors"`
+	ECCSingleBitErrors uint8   `json:"ecc_single_bit_errors"`
 	ECCDoubleBitErrors uint8   `json:"ecc_double_bit_errors"`
 }
 
@@ -34,9 +34,9 @@ type Power struct {
 	PowerCapped bool    `json:"power_capped"`
 }
 
-type GpuHealth struct {
-	GpuId        string       `json:"gpu_id"`
-	NodeId       string       `json:"node_id"`
+type GPUHealth struct {
+	GPUID        string       `json:"gpu_id"`
+	NodeID       string       `json:"node_id"`
 	Slot         uint16       `json:"slot"`
 	Model        string       `json:"model"`
 	HealthStatus HealthStatus `json:"status"`

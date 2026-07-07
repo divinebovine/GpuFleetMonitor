@@ -12,10 +12,10 @@ const (
 	GpusPerNode uint16 = 10
 )
 
-func GetHealth(gpuId string) (*GpuHealth, error) {
+func GetHealth(gpuID string) (*GPUHealth, error) {
 	// extract gpu id as an integer
 	var id uint16
-	_, err := fmt.Sscanf(gpuId, "GPU-%d", &id)
+	_, err := fmt.Sscanf(gpuID, "GPU-%d", &id)
 
 	if err != nil {
 		return nil, err
@@ -28,11 +28,11 @@ func GetHealth(gpuId string) (*GpuHealth, error) {
 
 	// Use the hash of the gpu id to generate a seed for random number generation
 	hash := fnv.New32a()
-	hash.Write([]byte(gpuId))
+	hash.Write([]byte(gpuID))
 	seed := hash.Sum32()
 	rng := rand.New(rand.NewSource(int64(seed)))
 
-	nodeId := ((id - 1) / GpusPerNode) + 1
+	nodeID := ((id - 1) / GpusPerNode) + 1
 	slot := (id - 1) % GpusPerNode
 
 	// Pick a model based on the id range
@@ -92,18 +92,18 @@ func GetHealth(gpuId string) (*GpuHealth, error) {
 
 	temperature := new(Temperature)
 	tMin, tMax := spec.temperature[healthStatus].Min, spec.temperature[healthStatus].Max
-	temperature.GpuCoreCelsius = tMin + (rng.Float64() * (tMax - tMin))
-	temperature.MemoryCelsius = temperature.GpuCoreCelsius - (10 + rng.Float64()*5)
+	temperature.GPUCoreCelsius = tMin + (rng.Float64() * (tMax - tMin))
+	temperature.MemoryCelsius = temperature.GPUCoreCelsius - (10 + rng.Float64()*5)
 	temperature.WarningThreshold = spec.temperature[StatusWarning].Min
 	temperature.CriticalThreshold = spec.temperature[StatusCritical].Min
-	temperature.Throttling = temperature.GpuCoreCelsius >= temperature.WarningThreshold
+	temperature.Throttling = temperature.GPUCoreCelsius >= temperature.WarningThreshold
 
 	memory := new(Memory)
 	memory.TotalBytes = spec.memoryBytes
 	memory.UsedBytes = uint64(float64(spec.memoryBytes) * memoryUtilization * .01)
 	memory.FreeBytes = memory.TotalBytes - memory.UsedBytes
 	memory.Utilization = memoryUtilization
-	memory.EccSingleBitErrors = memoryEccSingleBitErrors
+	memory.ECCSingleBitErrors = memoryEccSingleBitErrors
 	memory.ECCDoubleBitErrors = memoryEccDoubleBitErrors
 
 	power := new(Power)
@@ -113,9 +113,9 @@ func GetHealth(gpuId string) (*GpuHealth, error) {
 	power.Utilization = power.DrawWatts / power.LimitWatts * 100
 	power.PowerCapped = power.DrawWatts >= power.LimitWatts
 
-	gpuHealth := new(GpuHealth)
-	gpuHealth.GpuId = gpuId
-	gpuHealth.NodeId = fmt.Sprintf("NODE-%04d", nodeId)
+	gpuHealth := new(GPUHealth)
+	gpuHealth.GPUID = gpuID
+	gpuHealth.NodeID = fmt.Sprintf("NODE-%04d", nodeID)
 	gpuHealth.Slot = slot
 	gpuHealth.Model = model
 	gpuHealth.HealthStatus = healthStatus

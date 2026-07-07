@@ -16,7 +16,7 @@ var defaultTempRanges = map[HealthStatus]range64{
 	StatusCritical: {Min: 84.0, Max: 95.0},
 }
 
-type GpuSpec struct {
+type GPUSpec struct {
 	model         string
 	maxPowerWatts float64
 	memoryBytes   uint64
@@ -28,7 +28,7 @@ type GpuSpec struct {
 
 const GB = 1024 * 1024 * 1024
 
-var gpuSpecs = map[string]GpuSpec{
+var gpuSpecs = map[string]GPUSpec{
 	"H100": {
 		model:         "H100",
 		maxPowerWatts: 700.0,
@@ -75,11 +75,11 @@ var gpuSpecs = map[string]GpuSpec{
 	},
 }
 
-func SpecForModel(model string) (GpuSpec, error) {
+func SpecForModel(model string) (GPUSpec, error) {
 	gpuSpec, ok := gpuSpecs[model]
 
 	if !ok {
-		return GpuSpec{}, fmt.Errorf("%s not found in Gpu Specs", model)
+		return GPUSpec{}, fmt.Errorf("%s not found in GPU specs", model)
 	}
 
 	return gpuSpec, nil

@@ -81,14 +81,6 @@ curl http://localhost:3000/v1/gpus/GPU-00005   # critical GPU
 
 5. Temporal worker (`internal/temporal/`, `cmd/worker/`)
 
-## Naming Conventions (TODO)
-
-To revisit for idiomatic Go after core logic is working:
-- `GpuId` → `GPUID` (acronyms all-caps in Go)
-- `GpuHealth` → `GPUHealth`
-- `GpuSpec` → `GPUSpec`
-- `NodeId` → `NodeID`
-
 ## Dependencies
 
 - `github.com/go-chi/chi/v5 v5.1.0` — HTTP router

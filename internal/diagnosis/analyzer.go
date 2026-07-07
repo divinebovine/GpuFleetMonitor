@@ -12,16 +12,16 @@ const (
 	memoryTempCritical        = 95.0
 	eccSingleBitCountWarning  = 6
 	eccDoubleBitCountCritical = 1
-	highPowerUtilization      = 95 // percent
-	lowGpuUtilization         = 5  // percent
+	highPowerUtilization      = 95.0 // percent
+	lowGpuUtilization         = 5.0  // percent
 )
 
-func Analyze(health *gpu.GpuHealth) *Diagnosis {
+func Analyze(health *gpu.GPUHealth) *Diagnosis {
 	var findings = GenerateFindings(health)
 
 	var diagnosis = new(Diagnosis)
-	diagnosis.ID = fmt.Sprintf("diag-%s", health.GpuId)
-	diagnosis.GpuId = health.GpuId
+	diagnosis.ID = fmt.Sprintf("diag-%s", health.GPUID)
+	diagnosis.GPUID = health.GPUID
 	diagnosis.Timestamp = time.Now().UTC()
 	diagnosis.Severity = GetWorstSeverity(findings)
 	diagnosis.Findings = findings
@@ -30,21 +30,21 @@ func Analyze(health *gpu.GpuHealth) *Diagnosis {
 	return diagnosis
 }
 
-func GenerateFindings(health *gpu.GpuHealth) []Finding {
+func GenerateFindings(health *gpu.GPUHealth) []Finding {
 	var findings []Finding
 
 	// check gpu core temperature
 	switch {
-	case health.Temperature.GpuCoreCelsius >= health.Temperature.CriticalThreshold:
+	case health.Temperature.GPUCoreCelsius >= health.Temperature.CriticalThreshold:
 		findings = append(findings, Finding{
 			Code:        "HIGH_TEMPERATURE",
-			Description: fmt.Sprintf("GPU Core Temperature Critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GpuCoreCelsius, health.Temperature.CriticalThreshold),
+			Description: fmt.Sprintf("GPU Core Temperature Critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GPUCoreCelsius, health.Temperature.CriticalThreshold),
 			Severity:    SeverityCritical,
 		})
-	case health.Temperature.GpuCoreCelsius >= health.Temperature.WarningThreshold:
+	case health.Temperature.GPUCoreCelsius >= health.Temperature.WarningThreshold:
 		findings = append(findings, Finding{
 			Code:        "HIGH_TEMPERATURE",
-			Description: fmt.Sprintf("GPU Core Temperature Warning - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GpuCoreCelsius, health.Temperature.WarningThreshold),
+			Description: fmt.Sprintf("GPU Core Temperature Warning - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GPUCoreCelsius, health.Temperature.WarningThreshold),
 			Severity:    SeverityMedium,
 		})
 	}
@@ -66,10 +66,10 @@ func GenerateFindings(health *gpu.GpuHealth) []Finding {
 	}
 
 	// check memory errors
-	if health.Memory.EccSingleBitErrors >= eccSingleBitCountWarning {
+	if health.Memory.ECCSingleBitErrors >= eccSingleBitCountWarning {
 		findings = append(findings, Finding{
 			Code:        "ECC_SINGLE_BIT_ERRORS",
-			Description: fmt.Sprintf("ECC single bit errors warning - %d errors detected which exceeds the acceptable threshold of %d errors", health.Memory.EccSingleBitErrors, eccSingleBitCountWarning),
+			Description: fmt.Sprintf("ECC single bit errors warning - %d errors detected which exceeds the acceptable threshold of %d errors", health.Memory.ECCSingleBitErrors, eccSingleBitCountWarning),
 			Severity:    SeverityMedium,
 		})
 	}

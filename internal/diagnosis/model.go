@@ -19,7 +19,7 @@ type Finding struct {
 
 type Diagnosis struct {
 	ID             string    `json:"id"`
-	GpuId          string    `json:"gpu_id"`
+	GPUID          string    `json:"gpu_id"`
 	Timestamp      time.Time `json:"timestamp"`
 	Severity       Severity  `json:"severity"`
 	Findings       []Finding `json:"findings"`
