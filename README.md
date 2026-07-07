@@ -56,12 +56,23 @@ curl http://localhost:8081/v1/diagnose/diag-GPU-00005
 curl http://localhost:8081/v1/diagnoses
 ```
 
+## Testing
+
+```bash
+go test ./...
+go test ./... -race   # with race detector
+go test ./internal/gpu/ -v
+go test ./internal/diagnosis/ -v
+```
+
 ## What's Done
 
 - [x] `internal/gpu` — model, simulator, specs
 - [x] `cmd/telemetry` — `GET /v1/gpus/{id}`
 - [x] `internal/diagnosis` — model, analyzer, store
 - [x] `cmd/diagnosis` — `POST /v1/diagnose/{gpu_id}`, `GET /v1/diagnose/{id}`, `GET /v1/diagnoses`
+- [x] Tests — `internal/gpu` (simulator, specs) and `internal/diagnosis` (analyzer, store)
+- [x] CI — GitHub Actions on push/PR (build, vet, test with race detector)
 
 ## What's Next
 
