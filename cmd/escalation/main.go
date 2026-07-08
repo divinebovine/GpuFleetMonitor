@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/divinebovine/gpu-monitor/internal/escalation"
+	"github.com/divinebovine/GpuFleetMonitor/internal/escalation"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )

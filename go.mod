@@ -1,4 +1,4 @@
-module github.com/divinebovine/gpu-monitor
+module github.com/divinebovine/GpuFleetMonitor
 
 go 1.26.4
 

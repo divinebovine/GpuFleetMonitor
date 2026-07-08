@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/divinebovine/gpu-monitor/internal/diagnosis"
-	"github.com/divinebovine/gpu-monitor/internal/gpu"
+	"github.com/divinebovine/GpuFleetMonitor/internal/diagnosis"
+	"github.com/divinebovine/GpuFleetMonitor/internal/gpu"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )

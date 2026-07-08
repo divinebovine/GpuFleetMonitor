@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/divinebovine/gpu-monitor/internal/gpu"
+	"github.com/divinebovine/GpuFleetMonitor/internal/gpu"
 )
 
 const (

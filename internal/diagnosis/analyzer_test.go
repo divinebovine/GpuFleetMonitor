@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/divinebovine/gpu-monitor/internal/gpu"
+	"github.com/divinebovine/GpuFleetMonitor/internal/gpu"
 )
 
 func TestAnalyzeGpuCoreTemp(t *testing.T) {
