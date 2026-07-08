@@ -20,7 +20,9 @@ internal/
     model.go            → Diagnosis, Finding, Severity structs
     analyzer.go         → Analyze(*gpu.GPUHealth) — returns *Diagnosis
     store.go            → Thread-safe in-memory diagnosis store
-  escalation/           → Not started
+  escalation/
+    model.go            → Escalation struct with Resolve()
+    store.go            → Thread-safe in-memory escalation store
   temporal/             → Not started
 ```
 
@@ -54,6 +56,17 @@ go run ./cmd/diagnosis/
 curl -X POST http://localhost:8081/v1/diagnose/GPU-00005
 curl http://localhost:8081/v1/diagnose/diag-GPU-00005
 curl http://localhost:8081/v1/diagnoses
+
+# Escalation service
+go run ./cmd/escalation/
+
+# Test it
+curl -s -X POST http://localhost:8082/v1/escalations/esc-001 \
+  -H "Content-Type: application/json" \
+  -d '{"id":"esc-001","gpu_id":"GPU-00005","diagnosis_id":"diag-GPU-00005","severity":"critical","status":"open","created_at":"2026-07-08T00:00:00Z"}'
+curl http://localhost:8082/v1/escalations/esc-001
+curl http://localhost:8082/v1/escalations
+curl -X PUT http://localhost:8082/v1/escalations/esc-001/resolve
 ```
 
 ## Testing
@@ -73,12 +86,12 @@ go test ./internal/diagnosis/ -v
 - [x] `cmd/diagnosis` — `POST /v1/diagnose/{gpu_id}`, `GET /v1/diagnose/{id}`, `GET /v1/diagnoses`
 - [x] Tests — `internal/gpu` (simulator, specs) and `internal/diagnosis` (analyzer, store)
 - [x] CI — GitHub Actions on push/PR (build, vet, test with race detector)
+- [x] `internal/escalation` — model, store
+- [x] `cmd/escalation` — `POST /v1/escalations/{id}`, `GET /v1/escalations/{id}`, `GET /v1/escalations`, `PUT /v1/escalations/{id}/resolve`
 
 ## What's Next
 
-1. Escalation service (`internal/escalation/`, `cmd/escalation/`)
-
-2. Temporal worker (`internal/temporal/`, `cmd/worker/`)
+1. Temporal worker (`internal/temporal/`, `cmd/worker/`)
 
 ## Dependencies
 

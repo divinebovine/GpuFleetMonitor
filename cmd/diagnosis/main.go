@@ -11,6 +11,28 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
+func main() {
+	h := &handler{store: diagnosis.NewStore()}
+	r := chi.NewRouter()
+
+	// middleware
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP) // Pick the correct middleware for your setup
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer) // Recovers from panics
+
+	// Set a timeout for the context
+	r.Use(middleware.Timeout((60 * time.Second)))
+
+	r.Route("/v1", func(r chi.Router) {
+		r.Post("/diagnose/{gpu_id}", h.postDiagnosis)
+		r.Get("/diagnose/{id}", h.getDiagnosis)
+		r.Get("/diagnoses", h.getDiagnoses)
+	})
+
+	http.ListenAndServe(":8081", r)
+}
+
 type handler struct {
 	store *diagnosis.Store
 }
@@ -27,7 +49,7 @@ func (h *handler) postDiagnosis(w http.ResponseWriter, r *http.Request) {
 	d := diagnosis.Analyze(health, time.Now().UTC())
 	h.store.Save(d)
 
-	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(d)
 }
 
@@ -49,26 +71,4 @@ func (h *handler) getDiagnoses(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(d)
-}
-
-func main() {
-	h := &handler{store: diagnosis.NewStore()}
-	r := chi.NewRouter()
-
-	// middleware
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP) // Pick the correct middleware for your setup
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer) // Recovers from panics
-
-	// Set a timeout for the context
-	r.Use(middleware.Timeout((60 * time.Second)))
-
-	r.Route("/v1", func(r chi.Router) {
-		r.Post("/diagnose/{gpu_id}", h.postDiagnosis)
-		r.Get("/diagnose/{id}", h.getDiagnosis)
-		r.Get("/diagnoses", h.getDiagnoses)
-	})
-
-	http.ListenAndServe(":8081", r)
 }
