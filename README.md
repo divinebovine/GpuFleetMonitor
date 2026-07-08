@@ -1,5 +1,8 @@
 # gpu-monitor
 
+[![Build](https://github.com/divinebovine/gpu-monitor/actions/workflows/build.yml/badge.svg)](https://github.com/divinebovine/gpu-monitor/actions/workflows/build.yml)
+[![Test](https://github.com/divinebovine/gpu-monitor/actions/workflows/test.yml/badge.svg)](https://github.com/divinebovine/gpu-monitor/actions/workflows/test.yml)
+
 A Go microservices project simulating a GPU fleet health monitoring system for 10,000 GPUs.
 
 ## Architecture
