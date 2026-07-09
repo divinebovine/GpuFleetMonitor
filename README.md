@@ -26,7 +26,9 @@ internal/
   escalation/
     model.go            → Escalation struct with Resolve()
     store.go            → Thread-safe in-memory escalation store
-  temporal/             → Not started
+  temporal/
+    workflows/monitor.go → MonitorGPU workflow
+    activities/          → health, diagnosis, escalation activities
 ```
 
 ## GPU Simulation
@@ -41,6 +43,16 @@ internal/
   - 7001–10000: A30 (24GB, 165W TDP)
 - Health status is deterministic: hash(gpuId) % 100 → 0–4 = critical, 5–14 = warning, 15–99 = healthy
 - Values (temperature, power, memory) are seeded from the same hash so they're consistent across calls
+
+## Local Infrastructure
+
+```bash
+# Start Temporal server + UI (requires Docker)
+docker compose up -d
+
+# Temporal UI: http://localhost:8080
+# Temporal server: localhost:7233
+```
 
 ## Running
 
@@ -76,9 +88,10 @@ curl -X PUT http://localhost:8082/v1/escalations/esc-001/resolve
 
 ```bash
 go test ./...
-go test ./... -race   # with race detector
-go test ./internal/gpu/ -v
+go test ./... -race                        # with race detector
+go test ./internal/gpu/ -v                 # verbose output
 go test ./internal/diagnosis/ -v
+go test ./internal/temporal/workflows/ -v  # shows Temporal event log
 ```
 
 ## What's Done
@@ -87,16 +100,21 @@ go test ./internal/diagnosis/ -v
 - [x] `cmd/telemetry` — `GET /v1/gpus/{id}`
 - [x] `internal/diagnosis` — model, analyzer, store
 - [x] `cmd/diagnosis` — `POST /v1/diagnose/{gpu_id}`, `GET /v1/diagnose/{id}`, `GET /v1/diagnoses`
-- [x] Tests — `internal/gpu` (simulator, specs) and `internal/diagnosis` (analyzer, store)
-- [x] CI — GitHub Actions on push/PR (build, vet, test with race detector)
 - [x] `internal/escalation` — model, store
 - [x] `cmd/escalation` — `POST /v1/escalations/{id}`, `GET /v1/escalations/{id}`, `GET /v1/escalations`, `PUT /v1/escalations/{id}/resolve`
+- [x] `internal/temporal/workflows` — `MonitorGPU` workflow
+- [x] `internal/temporal/activities` — `GetHealth`, `Diagnose`, `Escalate` activities
+- [x] `cmd/worker/main.go` — Temporal worker on task queue `gpu-monitor`
+- [x] Tests — `internal/gpu`, `internal/diagnosis`, `internal/escalation`, `internal/temporal` (activities + workflow)
+- [x] CI — GitHub Actions on push/PR (build, vet, test with race detector)
 
 ## What's Next
 
-1. Temporal worker (`internal/temporal/`, `cmd/worker/`)
+- Persist diagnosis and escalation stores (database backend)
+- Fleet-wide scan: trigger `MonitorGPU` for all 10,000 GPUs in parallel
+- Expose workflow status via HTTP API
 
 ## Dependencies
 
 - `github.com/go-chi/chi/v5 v5.1.0` — HTTP router
-- Temporal Go SDK — to be added when worker is started
+- `go.temporal.io/sdk v1.46.0` — Temporal workflow SDK
