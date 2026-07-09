@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -30,7 +31,7 @@ func main() {
 		r.Get("/diagnoses", h.getDiagnoses)
 	})
 
-	http.ListenAndServe(":8081", r)
+	log.Fatal(http.ListenAndServe(":8081", r))
 }
 
 type handler struct {
@@ -49,6 +50,7 @@ func (h *handler) postDiagnosis(w http.ResponseWriter, r *http.Request) {
 	d := diagnosis.Analyze(health, time.Now().UTC())
 	h.store.Save(d)
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(d)
 }

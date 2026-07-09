@@ -8,7 +8,7 @@ import (
 
 func TestSaveAndGet(t *testing.T) {
 	s := NewStore()
-	expected := &Escalation{ID: "esc-001", GPUID: "GPU-00005"}
+	expected := Escalation{ID: "esc-001", GPUID: "GPU-00005"}
 	s.Save(expected)
 
 	actual, ok := s.GetByID("esc-001")
@@ -35,7 +35,7 @@ func TestGetByIDNotFound(t *testing.T) {
 func TestList(t *testing.T) {
 	s := NewStore()
 	for i := range 10 {
-		s.Save(&Escalation{ID: fmt.Sprintf("esc-%d", i), GPUID: fmt.Sprintf("GPU-%05d", i+1)})
+		s.Save(Escalation{ID: fmt.Sprintf("esc-%d", i), GPUID: fmt.Sprintf("GPU-%05d", i+1)})
 	}
 
 	all := s.List()
@@ -52,7 +52,7 @@ func TestSaveThreadSafe(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			s.Save(&Escalation{ID: fmt.Sprintf("esc-%d", i), GPUID: fmt.Sprintf("GPU-%05d", i+1)})
+			s.Save(Escalation{ID: fmt.Sprintf("esc-%d", i), GPUID: fmt.Sprintf("GPU-%05d", i+1)})
 		}()
 	}
 

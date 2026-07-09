@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -30,7 +31,7 @@ func main() {
 		r.Put("/escalations/{id}/resolve", h.resolveEscalationHandler)
 	})
 
-	http.ListenAndServe(":8082", r)
+	log.Fatal(http.ListenAndServe(":8082", r))
 }
 
 type handler struct {
@@ -49,7 +50,13 @@ func (h *handler) createEscalationHandler(w http.ResponseWriter, r *http.Request
 
 	var e *escalation.Escalation
 	json.NewDecoder(r.Body).Decode(&e)
-	h.store.Save(e)
+
+	if e == nil {
+		http.Error(w, "Bad Request: Unable to process payload", http.StatusBadRequest)
+		return
+	}
+
+	h.store.Save(*e)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(e)
@@ -89,5 +96,6 @@ func (h *handler) resolveEscalationHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	e.Resolve(time.Now().UTC())
+	h.store.Save(e)
 	w.WriteHeader(http.StatusNoContent)
 }

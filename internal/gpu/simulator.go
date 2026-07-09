@@ -61,7 +61,7 @@ func GetHealth(gpuID string) (*GPUHealth, error) {
 	var memoryEccSingleBitErrors uint8
 	var memoryEccDoubleBitErrors uint8
 	switch {
-	case statusRoll >= 0 && statusRoll <= 4:
+	case statusRoll <= 4:
 		// critial
 		healthStatus = StatusCritical
 		gpuUtilization = rng.Float64() * 30            // 0-30%, gpu may be stuck

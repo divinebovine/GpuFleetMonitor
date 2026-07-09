@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -24,11 +25,9 @@ func main() {
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/gpus/{id}", getGpuHandler)
-		r.Post("/diagnose/{id}", diagnoseHandler)
-		r.Put("/escalations/{id}/resolve", resolveHandler)
 	})
 
-	http.ListenAndServe(":3000", r)
+	log.Fatal(http.ListenAndServe(":3000", r))
 }
 
 func getGpuHandler(w http.ResponseWriter, r *http.Request) {
@@ -43,18 +42,4 @@ func getGpuHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(gpuHealth)
-}
-
-func diagnoseHandler(w http.ResponseWriter, r *http.Request) {
-	// todo: write the handler
-	data := map[string]string{"message": "Hello from the diagnose handler!"}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
-}
-
-func resolveHandler(w http.ResponseWriter, r *http.Request) {
-	// todo: write the handler
-	data := map[string]string{"message": "Hello from the resolve handler!"}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
 }
