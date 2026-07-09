@@ -3,7 +3,7 @@
 [![Build](https://github.com/divinebovine/GpuFleetMonitor/actions/workflows/build.yml/badge.svg)](https://github.com/divinebovine/GpuFleetMonitor/actions/workflows/build.yml)
 [![Test](https://github.com/divinebovine/GpuFleetMonitor/actions/workflows/test.yml/badge.svg)](https://github.com/divinebovine/GpuFleetMonitor/actions/workflows/test.yml)
 
-A Go microservices project simulating a GPU fleet health monitoring system for 10,000 GPUs.
+A Go microservices project simulating a GPU fleet health monitoring system for 10,000 GPUs, with a React + TypeScript frontend.
 
 ## Architecture
 
@@ -29,6 +29,8 @@ internal/
   temporal/
     workflows/monitor.go → MonitorGPU workflow
     activities/          → health, diagnosis, escalation activities
+
+web/                    → React + TypeScript frontend (Vite, :5173)
 ```
 
 ## GPU Simulation
@@ -94,10 +96,18 @@ go test ./internal/diagnosis/ -v
 go test ./internal/temporal/workflows/ -v  # shows Temporal event log
 ```
 
+## Frontend
+
+```bash
+cd web
+npm install
+npm run dev   # http://localhost:5173
+```
+
 ## What's Done
 
 - [x] `internal/gpu` — model, simulator, specs
-- [x] `cmd/telemetry` — `GET /v1/gpus/{id}`
+- [x] `cmd/telemetry` — `GET /v1/gpus/{id}`, `GET /v1/gpus` (worker pool, 100 concurrent)
 - [x] `internal/diagnosis` — model, analyzer, store
 - [x] `cmd/diagnosis` — `POST /v1/diagnose/{gpu_id}`, `GET /v1/diagnose/{id}`, `GET /v1/diagnoses`
 - [x] `internal/escalation` — model, store
@@ -105,11 +115,13 @@ go test ./internal/temporal/workflows/ -v  # shows Temporal event log
 - [x] `internal/temporal/workflows` — `MonitorGPU` workflow
 - [x] `internal/temporal/activities` — `GetHealth`, `Diagnose`, `Escalate` activities
 - [x] `cmd/worker/main.go` — Temporal worker on task queue `gpu-monitor`
-- [x] Tests — `internal/gpu`, `internal/diagnosis`, `internal/escalation`, `internal/temporal` (activities + workflow)
+- [x] Tests — `internal/gpu` (including `AllIDs`), `internal/diagnosis`, `internal/escalation`, `internal/temporal` (activities + workflow)
 - [x] CI — GitHub Actions on push/PR (build, vet, test with race detector)
+- [ ] `web/` — React + TypeScript frontend (Vite) — scaffolded, in progress
 
 ## What's Next
 
+- Build out frontend dashboard (GPU fleet overview, diagnoses, escalations)
 - Persist diagnosis and escalation stores (database backend)
 - Fleet-wide scan: trigger `MonitorGPU` for all 10,000 GPUs in parallel
 - Expose workflow status via HTTP API
@@ -118,3 +130,4 @@ go test ./internal/temporal/workflows/ -v  # shows Temporal event log
 
 - `github.com/go-chi/chi/v5 v5.1.0` — HTTP router
 - `go.temporal.io/sdk v1.46.0` — Temporal workflow SDK
+- `vite` + `react` + `typescript` — frontend toolchain

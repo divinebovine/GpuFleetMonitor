@@ -12,6 +12,19 @@ const (
 	GpusPerNode uint16 = 10
 )
 
+var gpuIDs []string
+
+func init() {
+	gpuIDs = make([]string, TotalGpus)
+	for i := range TotalGpus {
+		gpuIDs[i] = fmt.Sprintf("GPU-%05d", i+1)
+	}
+}
+
+func AllIDs() []string {
+	return gpuIDs
+}
+
 func GetHealth(gpuID string) (*GPUHealth, error) {
 	// extract gpu id as an integer
 	var id uint16

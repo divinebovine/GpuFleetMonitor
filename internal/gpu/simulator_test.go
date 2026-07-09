@@ -53,3 +53,17 @@ func TestOutOfRangeGPUID(t *testing.T) {
 		t.Fatalf("unexpected critical, expected GPU ID to be out of range, got GPUID: %s, NodeID: %s, Slot: %d", health.GPUID, health.NodeID, health.Slot)
 	}
 }
+
+func TestAllIDs(t *testing.T) {
+	ids := AllIDs()
+
+	if len(ids) != int(TotalGpus) {
+		t.Fatalf("expected %d IDs, got %d", TotalGpus, len(ids))
+	}
+	if ids[0] != "GPU-00001" {
+		t.Errorf("expected first ID to be GPU-00001, got %s", ids[0])
+	}
+	if ids[len(ids)-1] != "GPU-10000" {
+		t.Errorf("expected last ID to be GPU-10000, got %s", ids[len(ids)-1])
+	}
+}
