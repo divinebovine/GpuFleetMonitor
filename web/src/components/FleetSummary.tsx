@@ -5,9 +5,15 @@ type FleetSummaryProps = {
   data: GPUHealth[];
 };
 function FleetSummary({ data }: FleetSummaryProps) {
-  const healthyCount = data.filter((x) => x.status === "healthy").length;
-  const warningCount = data.filter((x) => x.status === "warning").length;
-  const criticalCount = data.filter((x) => x.status === "critical").length;
+  const { healthyCount, warningCount, criticalCount } = data.reduce(
+    (acc, x) => {
+      if (x.status === "healthy") acc.healthyCount++;
+      else if (x.status === "warning") acc.warningCount++;
+      else if (x.status === "critical") acc.criticalCount++;
+      return acc;
+    },
+    { healthyCount: 0, warningCount: 0, criticalCount: 0 },
+  );
 
   return (
     <>

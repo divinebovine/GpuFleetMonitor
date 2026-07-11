@@ -10,6 +10,14 @@ export function useGPUFleet() {
     const es = new EventSource("/api/v1/gpus");
     const buffer: GPUHealth[] = [];
 
+    es.addEventListener("open", () => {
+      // fires on initial connect and every reconnect
+      buffer.splice(0, buffer.length);
+      setData([]);
+      setLoading(true);
+      setError(null);
+    });
+
     es.addEventListener("message", (event) => {
       buffer.push(JSON.parse(event.data as string) as GPUHealth);
     });
@@ -32,13 +40,6 @@ export function useGPUFleet() {
       setLoading(false);
       es.close();
     });
-
-    es.onerror = () => {
-      clearInterval(interval);
-      setError("stream connection failed");
-      setLoading(false);
-      es.close();
-    };
 
     return () => {
       clearInterval(interval);

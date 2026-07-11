@@ -10,7 +10,7 @@ import {
   TableHead,
   TableRow as MuiTableRow,
 } from "@mui/material";
-import { type GPUHealth, type HealthStatus } from "../types/gpu";
+import { type GPUHealth } from "../types/gpu";
 
 type GPUListProps = {
   data: GPUHealth[];
@@ -72,7 +72,7 @@ function GPUList({ data }: GPUListProps) {
           <TableCell>
             <Chip
               label={health.status}
-              color={statusColor[health.status as HealthStatus]}
+              color={statusColor[health.status]}
               variant="outlined"
             />
           </TableCell>

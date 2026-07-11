@@ -65,7 +65,7 @@ func getAllGPUsHandler(w http.ResponseWriter, r *http.Request) {
 func eventStreamAllGPUs(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "event streaming not supported", http.StatusNotAcceptable)
+		http.Error(w, "event streaming not supported", http.StatusInternalServerError)
 		return
 	}
 
@@ -120,7 +120,7 @@ func fetchAllGPUs(w http.ResponseWriter, r *http.Request) {
 
 func runWorkerPool(ctx context.Context, allIDs []string) <-chan *gpu.GPUHealth {
 	jobs := make(chan string, workerPoolSize)
-	results := make(chan *gpu.GPUHealth, len(allIDs))
+	results := make(chan *gpu.GPUHealth, workerPoolSize)
 	var wg sync.WaitGroup
 
 	go func() {
