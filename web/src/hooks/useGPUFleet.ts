@@ -9,6 +9,7 @@ export function useGPUFleet() {
   useEffect(() => {
     const es = new EventSource("/api/v1/gpus");
     const buffer: GPUHealth[] = [];
+    let hasFlushed = false;
 
     es.addEventListener("open", () => {
       // fires on initial connect and every reconnect
@@ -31,6 +32,7 @@ export function useGPUFleet() {
       const batch = buffer.splice(0, buffer.length);
       setData((prev) => [...prev, ...batch]);
       setLoading(false);
+      hasFlushed = true;
     }, 200);
 
     es.addEventListener("done", () => {
@@ -47,6 +49,10 @@ export function useGPUFleet() {
 
     es.addEventListener("error", () => {
       console.error("SSE connection error, readyState:", es.readyState);
+      if (!hasFlushed) {
+        setError("stream connection failed");
+        setLoading(false);
+      }
     });
 
     return () => {
