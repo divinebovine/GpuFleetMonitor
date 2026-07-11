@@ -62,7 +62,13 @@ docker compose up -d
 # Telemetry service
 go run ./cmd/telemetry/
 
-# Test it
+# Stream all GPUs via SSE (used by the frontend)
+curl -H "Accept: text/event-stream" http://localhost:3000/v1/gpus
+
+# Get all GPUs as JSON
+curl http://localhost:3000/v1/gpus
+
+# Get a single GPU
 curl http://localhost:3000/v1/gpus/GPU-00001
 curl http://localhost:3000/v1/gpus/GPU-00005   # critical GPU
 
@@ -98,6 +104,13 @@ go test ./internal/temporal/workflows/ -v  # shows Temporal event log
 
 ## Frontend
 
+Vite + React 19 + TypeScript + MUI. Proxies `/api` → `http://localhost:3000` in dev.
+
+- Fleet summary stat cards (Healthy / Warning / Critical counts)
+- Virtualized GPU table (10,000 rows via `react-virtuoso`)
+- SSE streaming: rows arrive progressively, sorted by GPU ID on completion
+- Light/dark theme toggle with `localStorage` persistence
+
 ```bash
 cd web
 npm install
@@ -107,7 +120,7 @@ npm run dev   # http://localhost:5173
 ## What's Done
 
 - [x] `internal/gpu` — model, simulator, specs
-- [x] `cmd/telemetry` — `GET /v1/gpus/{id}`, `GET /v1/gpus` (worker pool, 100 concurrent)
+- [x] `cmd/telemetry` — `GET /v1/gpus/{id}`, `GET /v1/gpus` (worker pool, 100 concurrent; content negotiation: SSE or JSON)
 - [x] `internal/diagnosis` — model, analyzer, store
 - [x] `cmd/diagnosis` — `POST /v1/diagnose/{gpu_id}`, `GET /v1/diagnose/{id}`, `GET /v1/diagnoses`
 - [x] `internal/escalation` — model, store
@@ -117,11 +130,11 @@ npm run dev   # http://localhost:5173
 - [x] `cmd/worker/main.go` — Temporal worker on task queue `gpu-monitor`
 - [x] Tests — `internal/gpu` (including `AllIDs`), `internal/diagnosis`, `internal/escalation`, `internal/temporal` (activities + workflow)
 - [x] CI — GitHub Actions on push/PR (build, vet, test with race detector)
-- [ ] `web/` — React + TypeScript frontend (Vite) — scaffolded, in progress
+- [x] `web/` — React + TypeScript frontend (Vite) — fleet summary + 10,000-row virtualized GPU table with SSE streaming
 
 ## What's Next
 
-- Build out frontend dashboard (GPU fleet overview, diagnoses, escalations)
+- Add diagnoses and escalations views to the frontend
 - Persist diagnosis and escalation stores (database backend)
 - Fleet-wide scan: trigger `MonitorGPU` for all 10,000 GPUs in parallel
 - Expose workflow status via HTTP API

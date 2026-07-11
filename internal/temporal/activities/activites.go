@@ -20,7 +20,7 @@ func NewActivities(ds *diagnosis.Store, es *escalation.Store) *Activities {
 }
 
 func (a *Activities) GetHealth(ctx context.Context, id string) (*gpu.GPUHealth, error) {
-	return gpu.GetHealth(id)
+	return gpu.GetHealth(ctx, id)
 }
 
 func (a *Activities) Diagnose(ctx context.Context, h *gpu.GPUHealth) (*diagnosis.Diagnosis, error) {

@@ -40,7 +40,7 @@ type GPUHealth struct {
 	Slot         uint16       `json:"slot"`
 	Model        string       `json:"model"`
 	HealthStatus HealthStatus `json:"status"`
-	Timestamp    time.Time    `json:"time_stamp"`
+	Timestamp    time.Time    `json:"timestamp"`
 	Utilization  float64      `json:"utilization"`
 	Temperature  Temperature  `json:"temperature"`
 	Memory       Memory       `json:"memory"`

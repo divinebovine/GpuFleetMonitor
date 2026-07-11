@@ -1,6 +1,7 @@
 package gpu
 
 import (
+	"context"
 	"fmt"
 	"hash/fnv"
 	"math/rand"
@@ -25,7 +26,7 @@ func AllIDs() []string {
 	return gpuIDs
 }
 
-func GetHealth(gpuID string) (*GPUHealth, error) {
+func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 	// extract gpu id as an integer
 	var id uint16
 	_, err := fmt.Sscanf(gpuID, "GPU-%d", &id)

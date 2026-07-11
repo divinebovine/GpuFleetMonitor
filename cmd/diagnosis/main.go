@@ -40,7 +40,7 @@ type handler struct {
 
 func (h *handler) postDiagnosis(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "gpu_id")
-	health, err := gpu.GetHealth(id)
+	health, err := gpu.GetHealth(r.Context(), id)
 
 	if err != nil {
 		http.NotFound(w, r) // just use not found for now
