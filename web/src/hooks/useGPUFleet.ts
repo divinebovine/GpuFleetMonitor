@@ -19,7 +19,11 @@ export function useGPUFleet() {
     });
 
     es.addEventListener("message", (event) => {
-      buffer.push(JSON.parse(event.data as string) as GPUHealth);
+      try {
+        buffer.push(JSON.parse(event.data as string) as GPUHealth);
+      } catch (err) {
+        console.error("failed to parse GPU health event:", err);
+      }
     });
 
     const interval = setInterval(() => {
@@ -39,6 +43,10 @@ export function useGPUFleet() {
       );
       setLoading(false);
       es.close();
+    });
+
+    es.addEventListener("error", () => {
+      console.error("SSE connection error, readyState:", es.readyState);
     });
 
     return () => {
