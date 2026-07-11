@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -49,16 +52,78 @@ func getGpuHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllGPUsHandler(w http.ResponseWriter, r *http.Request) {
-	var healths []*gpu.GPUHealth
-	allIDs := gpu.AllIDs()
+	accept := r.Header.Get("Accept")
+	switch {
+	case strings.Contains(accept, "text/event-stream"):
+		eventStreamAllGPUs(w, r)
+	default:
+		fetchAllGPUs(w, r)
+	}
+}
 
+func eventStreamAllGPUs(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "event streaming not supported", http.StatusNotAcceptable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	ctx := r.Context()
+	results := runWorkerPool(ctx, gpu.AllIDs())
+	for {
+		select {
+		case h, ok := <-results:
+			if !ok {
+				fmt.Fprintf(w, "event: done\ndata: {}\n\n")
+				flusher.Flush()
+				return
+			}
+			data, _ := json.Marshal(h)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func fetchAllGPUs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	results := runWorkerPool(ctx, gpu.AllIDs())
+	var healths []*gpu.GPUHealth
+
+	for {
+		select {
+		case h, ok := <-results:
+			if !ok {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(healths)
+				return
+			}
+			healths = append(healths, h)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func runWorkerPool(ctx context.Context, allIDs []string) <-chan *gpu.GPUHealth {
 	jobs := make(chan string, workerPoolSize)
 	results := make(chan *gpu.GPUHealth, len(allIDs))
 	var wg sync.WaitGroup
 
 	go func() {
 		for _, id := range allIDs {
-			jobs <- id
+			select {
+			case jobs <- id:
+			case <-ctx.Done():
+				close(jobs)
+				return
+			}
 		}
 		close(jobs)
 	}()
@@ -68,14 +133,19 @@ func getAllGPUsHandler(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			defer wg.Done()
 			for id := range jobs {
-				gpuHealth, err := gpu.GetHealth(id)
+				h, err := gpu.GetHealth(id)
 
 				if err != nil {
-					// do something
-					return
+					// probably should have some way to alert that
+					// a gpu is not responding to health checks
+					continue
 				}
 
-				results <- gpuHealth
+				select {
+				case results <- h:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 	}
@@ -84,11 +154,5 @@ func getAllGPUsHandler(w http.ResponseWriter, r *http.Request) {
 		wg.Wait()
 		close(results)
 	}()
-
-	for h := range results {
-		healths = append(healths, h)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(healths)
+	return results
 }
