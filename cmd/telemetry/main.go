@@ -40,7 +40,7 @@ func main() {
 func getGpuHandler(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	gpuHealth, err := gpu.GetHealth(id)
+	gpuHealth, err := gpu.GetHealth(r.Context(), id)
 
 	if err != nil {
 		http.NotFound(w, r) // just use not found for now
@@ -140,7 +140,7 @@ func runWorkerPool(ctx context.Context, allIDs []string) <-chan *gpu.GPUHealth {
 		go func() {
 			defer wg.Done()
 			for id := range jobs {
-				h, err := gpu.GetHealth(id)
+				h, err := gpu.GetHealth(ctx, id)
 
 				if err != nil {
 					// probably should have some way to alert that

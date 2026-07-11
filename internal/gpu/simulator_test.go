@@ -1,13 +1,14 @@
 package gpu
 
 import (
+	"context"
 	"testing"
 )
 
 func TestGetHealth(t *testing.T) {
 	// GPU health statuses are deterministic
 	// This is a known critical GPU
-	health, err := GetHealth("GPU-00005")
+	health, err := GetHealth(context.Background(), "GPU-00005")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -19,7 +20,7 @@ func TestGetHealth(t *testing.T) {
 }
 
 func TestGetHealthWarning(t *testing.T) {
-	health, err := GetHealth("GPU-00023")
+	health, err := GetHealth(context.Background(), "GPU-00023")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -29,7 +30,7 @@ func TestGetHealthWarning(t *testing.T) {
 }
 
 func TestGetHealthHealthy(t *testing.T) {
-	health, err := GetHealth("GPU-00001")
+	health, err := GetHealth(context.Background(), "GPU-00001")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -39,7 +40,7 @@ func TestGetHealthHealthy(t *testing.T) {
 }
 
 func TestInvalidID(t *testing.T) {
-	health, err := GetHealth("invalid-gpu-id")
+	health, err := GetHealth(context.Background(), "invalid-gpu-id")
 
 	if err == nil {
 		t.Fatalf("unexpected critical, expected invalid GPUID, got GPUID: %s, NodeID: %s, Slot: %d", health.GPUID, health.NodeID, health.Slot)
@@ -47,7 +48,7 @@ func TestInvalidID(t *testing.T) {
 }
 
 func TestOutOfRangeGPUID(t *testing.T) {
-	health, err := GetHealth("GPU-99999")
+	health, err := GetHealth(context.Background(), "GPU-99999")
 
 	if err == nil {
 		t.Fatalf("unexpected critical, expected GPU ID to be out of range, got GPUID: %s, NodeID: %s, Slot: %d", health.GPUID, health.NodeID, health.Slot)
