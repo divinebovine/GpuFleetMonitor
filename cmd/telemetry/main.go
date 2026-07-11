@@ -52,6 +52,7 @@ func getGpuHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllGPUsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Vary", "Accept")
 	accept := r.Header.Get("Accept")
 	switch {
 	case strings.Contains(accept, "text/event-stream"):
@@ -82,7 +83,13 @@ func eventStreamAllGPUs(w http.ResponseWriter, r *http.Request) {
 				flusher.Flush()
 				return
 			}
-			data, _ := json.Marshal(h)
+
+			data, err := json.Marshal(h)
+			if err != nil {
+				log.Printf("failed to marshal GPU health for %s: %v", h.GPUID, err)
+				continue
+			}
+
 			fmt.Fprintf(w, "data: %s\n\n", data)
 			flusher.Flush()
 		case <-ctx.Done():

@@ -42,7 +42,11 @@ function App() {
           <Typography variant="h6" align="center" sx={{ flexGrow: 1 }}>
             GPU Fleet Monitor
           </Typography>
-          <IconButton onClick={toggleMode} color="inherit">
+          <IconButton
+            onClick={toggleMode}
+            color="inherit"
+            aria-label="Toggle theme"
+          >
             {mode === "dark" ? <LightMode /> : <DarkMode />}
           </IconButton>
         </Toolbar>
