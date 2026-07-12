@@ -3,8 +3,7 @@ package gpu
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 )
 
@@ -20,6 +19,8 @@ func init() {
 	for i := range TotalGpus {
 		gpuIDs[i] = fmt.Sprintf("GPU-%05d", i+1)
 	}
+
+	DefaultStore = NewStore(gpuIDs)
 }
 
 func AllIDs() []string {
@@ -27,7 +28,6 @@ func AllIDs() []string {
 }
 
 func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
-	// extract gpu id as an integer
 	var id uint16
 	_, err := fmt.Sscanf(gpuID, "GPU-%d", &id)
 
@@ -35,16 +35,9 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 		return nil, err
 	}
 
-	// sanity check
 	if id > (TotalGpus) || id < 1 {
 		return nil, fmt.Errorf("Invalid GPU ID: ID must be between 1 - %d", TotalGpus)
 	}
-
-	// Use the hash of the gpu id to generate a seed for random number generation
-	hash := fnv.New32a()
-	hash.Write([]byte(gpuID))
-	seed := hash.Sum32()
-	rng := rand.New(rand.NewSource(int64(seed)))
 
 	nodeID := ((id - 1) / GpusPerNode) + 1
 	slot := (id - 1) % GpusPerNode
@@ -66,48 +59,42 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 		model = "A30"
 	}
 
-	// Use the seed, based on the gpu id, to deterministically set the health status
-	// and additional values that correlate with the health status
-	statusRoll := seed % 100
-	var healthStatus HealthStatus
+	status, ok := DefaultStore.GetStatus(gpuID)
+	if !ok {
+		return nil, fmt.Errorf("cannot find gpu %s in store", gpuID)
+	}
+
 	var gpuUtilization float64
 	var memoryUtilization float64
 	var memoryEccSingleBitErrors uint8
 	var memoryEccDoubleBitErrors uint8
-	switch {
-	case statusRoll <= 4:
-		// critial
-		healthStatus = StatusCritical
-		gpuUtilization = rng.Float64() * 30            // 0-30%, gpu may be stuck
-		memoryUtilization = (rng.Float64() * 10) + 90  // 90-100%, memory leak
-		memoryEccSingleBitErrors = uint8(rng.Intn(20)) // 0-20 single bit errors
-		memoryEccDoubleBitErrors = uint8(rng.Intn(3))  // 0-3 double bit errors
-	case statusRoll >= 5 && statusRoll <= 14:
-		// warning
-		healthStatus = StatusWarning
-		gpuUtilization = (rng.Float64() * 10) + 90    // 90-100%, gpu is pegged
-		memoryUtilization = (rng.Float64() * 20) + 70 // 70-90%, memory pressure
-		memoryEccSingleBitErrors = uint8(rng.Intn(5)) // 0-5 single bit errors
-		memoryEccDoubleBitErrors = 0                  // 0 double bit errors
+	switch status {
+	case StatusCritical:
+		gpuUtilization = rand.Float64() * 30            // 0-30%, gpu may be stuck
+		memoryUtilization = (rand.Float64() * 10) + 90  // 90-100%, memory leak
+		memoryEccSingleBitErrors = uint8(rand.IntN(20)) // 0-20 single bit errors
+		memoryEccDoubleBitErrors = uint8(rand.IntN(3))  // 0-3 double bit errors
+	case StatusWarning:
+		gpuUtilization = (rand.Float64() * 10) + 90    // 90-100%, gpu is pegged
+		memoryUtilization = (rand.Float64() * 20) + 70 // 70-90%, memory pressure
+		memoryEccSingleBitErrors = uint8(rand.IntN(5)) // 0-5 single bit errors
+		memoryEccDoubleBitErrors = 0                   // 0 double bit errors
 	default:
-		// healthy
-		healthStatus = StatusHealthy
-		gpuUtilization = (rng.Float64() * 50) + 40    // 40-90%, normal load
-		memoryUtilization = (rng.Float64() * 50) + 20 // 20-70%, normal memory load
-		memoryEccSingleBitErrors = 0                  // 0 single bit errors
-		memoryEccDoubleBitErrors = 0                  // 0 double bit errors
+		gpuUtilization = (rand.Float64() * 50) + 40    // 40-90%, normal load
+		memoryUtilization = (rand.Float64() * 50) + 20 // 20-70%, normal memory load
+		memoryEccSingleBitErrors = 0                   // 0 single bit errors
+		memoryEccDoubleBitErrors = 0                   // 0 double bit errors
 	}
 
-	// Get the specs for the model
 	spec, err := SpecForModel(model)
 	if err != nil {
 		return nil, err
 	}
 
 	temperature := new(Temperature)
-	tMin, tMax := spec.temperature[healthStatus].Min, spec.temperature[healthStatus].Max
-	temperature.GPUCoreCelsius = tMin + (rng.Float64() * (tMax - tMin))
-	temperature.MemoryCelsius = temperature.GPUCoreCelsius - (10 + rng.Float64()*5)
+	tMin, tMax := spec.temperature[status].Min, spec.temperature[status].Max
+	temperature.GPUCoreCelsius = tMin + (rand.Float64() * (tMax - tMin))
+	temperature.MemoryCelsius = temperature.GPUCoreCelsius - (10 + rand.Float64()*5)
 	temperature.WarningThreshold = spec.temperature[StatusWarning].Min
 	temperature.CriticalThreshold = spec.temperature[StatusCritical].Min
 	temperature.Throttling = temperature.GPUCoreCelsius >= temperature.WarningThreshold
@@ -121,8 +108,8 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 	memory.ECCDoubleBitErrors = memoryEccDoubleBitErrors
 
 	power := new(Power)
-	pMin, pMax := spec.power[healthStatus].Min, spec.power[healthStatus].Max
-	power.DrawWatts = pMin + (rng.Float64() * (pMax - pMin))
+	pMin, pMax := spec.power[status].Min, spec.power[status].Max
+	power.DrawWatts = pMin + (rand.Float64() * (pMax - pMin))
 	power.LimitWatts = spec.maxPowerWatts
 	power.Utilization = power.DrawWatts / power.LimitWatts * 100
 	power.PowerCapped = power.DrawWatts >= power.LimitWatts
@@ -132,7 +119,7 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 	gpuHealth.NodeID = fmt.Sprintf("NODE-%04d", nodeID)
 	gpuHealth.Slot = slot
 	gpuHealth.Model = model
-	gpuHealth.HealthStatus = healthStatus
+	gpuHealth.HealthStatus = status
 	gpuHealth.Timestamp = time.Now().UTC()
 	gpuHealth.Utilization = gpuUtilization
 	gpuHealth.Temperature = *temperature

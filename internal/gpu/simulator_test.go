@@ -6,37 +6,31 @@ import (
 )
 
 func TestGetHealth(t *testing.T) {
-	// GPU health statuses are deterministic
-	// This is a known critical GPU
-	health, err := GetHealth(context.Background(), "GPU-00005")
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	cases := []struct {
+		id             string
+		expectedStatus HealthStatus
+	}{
+		{"GPU-00001", StatusHealthy},
+		{"GPU-00002", StatusWarning},
+		{"GPU-00003", StatusCritical},
 	}
 
-	if health.HealthStatus != StatusCritical {
-		t.Errorf("unexpected health status, expected critical, got %s", health.HealthStatus)
-	}
-}
+	for _, tc := range cases {
+		t.Run(tc.id, func(t *testing.T) {
+			DefaultStore.SetStatus(tc.id, tc.expectedStatus)
+			t.Cleanup(func() { DefaultStore.SetStatus(tc.id, StatusHealthy) })
+			health, err := GetHealth(context.Background(), tc.id)
 
-func TestGetHealthWarning(t *testing.T) {
-	health, err := GetHealth(context.Background(), "GPU-00023")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if health.HealthStatus != StatusWarning {
-		t.Errorf("expected warning, got %s", health.HealthStatus)
-	}
-}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
-func TestGetHealthHealthy(t *testing.T) {
-	health, err := GetHealth(context.Background(), "GPU-00001")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+			if health.HealthStatus != tc.expectedStatus {
+				t.Errorf("unexpected health status, expected %s, got %s", tc.expectedStatus, health.HealthStatus)
+			}
+		})
 	}
-	if health.HealthStatus != StatusHealthy {
-		t.Errorf("expected healthy, got %s", health.HealthStatus)
-	}
+
 }
 
 func TestInvalidID(t *testing.T) {
