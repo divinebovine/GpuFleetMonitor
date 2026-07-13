@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/divinebovine/GpuFleetMonitor/internal/gpu"
@@ -32,7 +35,15 @@ func main() {
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/gpus/{id}", getGpuHandler)
 		r.Get("/gpus", getAllGPUsHandler)
+		r.Get("/simulation/settings", getSimulationSettingsHandler)
+		r.Put("/simulation/settings", putSimulationSettingsHandler)
+		r.Post("/simulation/settings/reset", postResetSimulationSettingsHandler)
 	})
+
+	// Start simulation ticker
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	gpu.DefaultTicker.Start(ctx)
 
 	log.Fatal(http.ListenAndServe(":3000", r))
 }
@@ -161,4 +172,51 @@ func runWorkerPool(ctx context.Context, allIDs []string) <-chan *gpu.GPUHealth {
 		close(results)
 	}()
 	return results
+}
+
+func getSimulationSettingsHandler(w http.ResponseWriter, r *http.Request) {
+	settings := gpu.Config.Get()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(settings)
+}
+
+func putSimulationSettingsHandler(w http.ResponseWriter, r *http.Request) {
+	var settings *gpu.SimulationSettings = &gpu.SimulationSettings{}
+	err := json.NewDecoder(r.Body).Decode(settings)
+
+	if err != nil {
+		http.Error(w, "unable to parse settings", http.StatusBadRequest)
+		return
+	}
+
+	if settings.SpeedMultiplier < 1 || settings.SpeedMultiplier > 100 {
+		http.Error(w, "speed multiplier must be between 1 and 100", http.StatusBadRequest)
+		return
+	}
+
+	if settings.HealthyToWarningRate < 0 || settings.HealthyToWarningRate > 1.0 {
+		http.Error(w, "healthy to warning rate must be greater than or equal to 0.0 and less than or equal to 1.0", http.StatusBadRequest)
+		return
+	}
+
+	if settings.WarningToCriticalRate < 0 || settings.WarningToHealthyRate < 0 {
+		http.Error(w, "warning to critical rate and warning to healthy rate cannot be less than 0.0", http.StatusBadRequest)
+		return
+	}
+
+	if settings.WarningToCriticalRate+settings.WarningToHealthyRate >= 1.0 {
+		http.Error(w, "warning to critical rate and warning to healthy rate cannot sum to a number greater than or equal to 1.0", http.StatusBadRequest)
+		return
+	}
+
+	confirmedSettings := gpu.Config.Set(settings)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(confirmedSettings)
+}
+
+func postResetSimulationSettingsHandler(w http.ResponseWriter, r *http.Request) {
+	confirmedSettings := gpu.Config.Reset()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(confirmedSettings)
 }
