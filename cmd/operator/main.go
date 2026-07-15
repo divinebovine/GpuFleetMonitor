@@ -179,8 +179,9 @@ func main() {
 	}
 
 	if err := (&controller.GPUHealthReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		TelemetryURL: "http://localhost:3000",
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "gpuhealth")
 		os.Exit(1)

@@ -21,48 +21,164 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// GPUHealthSpec defines the desired state of GPUHealth
+// GPUHealthSpec defines the desired state of GPUHealth.
 type GPUHealthSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+	// nodeName is the Kubernetes node that hosts this GPU.
+	// +kubebuilder:validation:Required
+	NodeName string `json:"nodeName"`
 
-	// foo is an example field of GPUHealth. Edit gpuhealth_types.go to remove/update
+	// gpuID is the hardware identifier of the GPU (e.g. "GPU-00001").
+	// +kubebuilder:validation:Required
+	GPUID string `json:"gpuID"`
+
+	// remediationPolicy controls how the operator responds when this GPU enters a critical state.
+	// +kubebuilder:default=None
+	RemediationPolicy RemediationPolicy `json:"remediationPolicy"`
+
+	// maxRemediationAttempts is the number of automated remediation cycles to attempt
+	// before escalating to human intervention, regardless of remediationPolicy.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:default=3
 	// +optional
-	Foo *string `json:"foo,omitempty"`
+	MaxRemediationAttempts int32 `json:"maxRemediationAttempts,omitempty"`
 }
+
+// RemediationPolicy defines how the operator responds to a GPU entering a critical state.
+// +kubebuilder:validation:Enum=None;Drain;Replace;Escalate
+type RemediationPolicy string
+
+const (
+	// RemediationPolicyNone observes the GPU but takes no automated action.
+	RemediationPolicyNone RemediationPolicy = "None"
+	// RemediationPolicyDrain cordons the node and drains workloads, then waits for recovery.
+	RemediationPolicyDrain RemediationPolicy = "Drain"
+	// RemediationPolicyReplace drains the node and marks the GPU for hardware replacement.
+	RemediationPolicyReplace RemediationPolicy = "Replace"
+	// RemediationPolicyEscalate pages an operator immediately without attempting automated remediation.
+	RemediationPolicyEscalate RemediationPolicy = "Escalate"
+)
 
 // GPUHealthStatus defines the observed state of GPUHealth.
 type GPUHealthStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// phase is the current position of this GPU in the health state machine.
+	// +optional
+	Phase GPUPhase `json:"phase,omitempty"`
 
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
-	// conditions represent the current state of the GPUHealth resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
+	// conditions reflect the current state of the GPUHealth resource using
+	// standard Kubernetes condition types.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// findings contains diagnostic observations recorded by the operator.
+	// Capped at 100 entries; oldest findings are evicted when the limit is reached.
+	// +kubebuilder:validation:MaxItems=100
+	// +optional
+	Findings []Finding `json:"findings,omitempty"`
+
+	// remediationAttempts tracks how many automated remediation cycles have been attempted.
+	// When this reaches spec.maxRemediationAttempts, the operator sets EscalationRequired.
+	// +optional
+	RemediationAttempts int32 `json:"remediationAttempts,omitempty"`
+
+	// lastTransitionTime is when the phase last changed.
+	// +optional
+	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
+
+	// observedGeneration is the .metadata.generation that this status was computed from.
+	// Used to detect whether status is stale relative to the current spec.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
+
+// GPUPhase represents where a GPU sits in the health state machine.
+//
+// State transitions:
+//
+//	Healthy -> Warning -> Critical -> Draining -> Recovering -> Healthy
+//	                           |
+//	                           |-> Replacing -> Rejoining -> Healthy
+//	                           |
+//	                           |-> Failed  (human intervention required)
+//
+// +kubebuilder:validation:Enum=Healthy;Warning;Critical;Draining;Recovering;Replacing;Rejoining;Failed
+type GPUPhase string
+
+const (
+	// PhaseHealthy indicates the GPU is operating within normal parameters.
+	PhaseHealthy GPUPhase = "Healthy"
+	// PhaseWarning indicates metrics are drifting (thermal, power, single-bit ECC errors).
+	PhaseWarning GPUPhase = "Warning"
+	// PhaseCritical indicates the GPU has serious errors (XID, double-bit ECC) requiring action.
+	PhaseCritical GPUPhase = "Critical"
+	// PhaseDraining indicates the operator has cordoned the node and is migrating workloads.
+	PhaseDraining GPUPhase = "Draining"
+	// PhaseRecovering indicates the drain is complete and diagnostics are running.
+	PhaseRecovering GPUPhase = "Recovering"
+	// PhaseReplacing indicates diagnostics failed and hardware replacement is in progress.
+	PhaseReplacing GPUPhase = "Replacing"
+	// PhaseRejoining indicates replacement is complete and the GPU is being re-validated.
+	PhaseRejoining GPUPhase = "Rejoining"
+	// PhaseFailed indicates automated remediation was exhausted; human intervention required.
+	PhaseFailed GPUPhase = "Failed"
+)
+
+// Condition type constants for GPUHealth resources.
+const (
+	// ConditionGPUHealthy is True when the GPU is functioning within normal parameters.
+	ConditionGPUHealthy = "GPUHealthy"
+	// ConditionRemediationInProgress is True while the operator is actively remediating.
+	ConditionRemediationInProgress = "RemediationInProgress"
+	// ConditionEscalationRequired is True when automated remediation has been exhausted.
+	ConditionEscalationRequired = "EscalationRequired"
+)
+
+// Finding records a specific diagnostic observation made by the operator.
+type Finding struct {
+	// type identifies the category of problem observed.
+	Type FindingType `json:"type"`
+
+	// severity indicates how serious this finding is.
+	// +kubebuilder:validation:Enum=Warning;Critical
+	Severity string `json:"severity"`
+
+	// message is a human-readable description of the finding.
+	Message string `json:"message"`
+
+	// count is how many times this finding has been observed since it was first recorded.
+	// +kubebuilder:validation:Minimum=1
+	Count int32 `json:"count"`
+
+	// observedAt is the timestamp when this finding was first recorded.
+	ObservedAt metav1.Time `json:"observedAt"`
+}
+
+// FindingType identifies the category of a diagnostic observation.
+// +kubebuilder:validation:Enum=XIDError;ECCSingleBitError;ECCDoubleBitError;ThermalThrottle;MemoryLeak;PowerCapped;Unknown
+type FindingType string
+
+const (
+	FindingXIDError          FindingType = "XIDError"
+	FindingECCSingleBitError FindingType = "ECCSingleBitError"
+	FindingECCDoubleBitError FindingType = "ECCDoubleBitError"
+	FindingThermalThrottle   FindingType = "ThermalThrottle"
+	FindingMemoryLeak        FindingType = "MemoryLeak"
+	FindingPowerCapped       FindingType = "PowerCapped"
+	FindingUnknown           FindingType = "Unknown"
+)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster,shortName=gh
+// +kubebuilder:printcolumn:name="GPU ID",type="string",JSONPath=".spec.gpuID"
+// +kubebuilder:printcolumn:name="Node",type="string",JSONPath=".spec.nodeName"
+// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="Policy",type="string",JSONPath=".spec.remediationPolicy"
+// +kubebuilder:printcolumn:name="Attempts",type="integer",JSONPath=".status.remediationAttempts"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// GPUHealth is the Schema for the gpuhealths API
+// GPUHealth is the Schema for the gpuhealths API.
 type GPUHealth struct {
 	metav1.TypeMeta `json:",inline"`
 

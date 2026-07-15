@@ -18,24 +18,33 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	gpuv1alpha1 "github.com/divinebovine/GpuFleetMonitor/api/v1alpha1"
+	"github.com/divinebovine/GpuFleetMonitor/api/v1alpha1"
+
+	gpuModel "github.com/divinebovine/GpuFleetMonitor/internal/gpu"
 )
 
 // GPUHealthReconciler reconciles a GPUHealth object
 type GPUHealthReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme       *runtime.Scheme
+	TelemetryURL string
 }
 
-// +kubebuilder:rbac:groups=gpu.gpu.nvidia.com,resources=gpuhealths,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=gpu.gpu.nvidia.com,resources=gpuhealths/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=gpu.gpu.nvidia.com,resources=gpuhealths/finalizers,verbs=update
+// +kubebuilder:rbac:groups=gpu.nvidia.com,resources=gpuhealths,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gpu.nvidia.com,resources=gpuhealths/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gpu.nvidia.com,resources=gpuhealths/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -47,17 +56,69 @@ type GPUHealthReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.24.1/pkg/reconcile
 func (r *GPUHealthReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	log := logf.FromContext(ctx)
 
-	// TODO(user): your logic here
+	var gpu v1alpha1.GPUHealth
+	err := r.Get(ctx, req.NamespacedName, &gpu)
+	if err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
-	return ctrl.Result{}, nil
+	resp, err := http.Get(fmt.Sprintf("%s/v1/gpus/%s", r.TelemetryURL, gpu.Spec.GPUID))
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("fetching telemetry for %s: %w", gpu.Spec.GPUID, err)
+	}
+
+	defer resp.Body.Close()
+	var gpuHealthModel gpuModel.GPUHealth
+	err = json.NewDecoder(resp.Body).Decode(&gpuHealthModel)
+
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed decoding telemetry for %s: %w", gpu.Spec.GPUID, err)
+	}
+
+	existing := meta.FindStatusCondition(gpu.Status.Conditions, v1alpha1.ConditionGPUHealthy)
+	newC := metav1.Condition{
+		Type:               v1alpha1.ConditionGPUHealthy,
+		ObservedGeneration: gpu.Generation,
+	}
+	switch gpuHealthModel.HealthStatus {
+	case gpuModel.StatusCritical:
+		gpu.Status.Phase = v1alpha1.PhaseCritical
+		newC.Status = metav1.ConditionFalse
+		newC.Reason = "GPUCritical"
+		newC.Message = "GPU is experiencing critical errors and requires remediation"
+	case gpuModel.StatusWarning:
+		gpu.Status.Phase = v1alpha1.PhaseWarning
+		newC.Status = metav1.ConditionFalse
+		newC.Reason = "GPUDegraded"
+		newC.Message = "GPU metrics are outside normal parameters"
+	default:
+		gpu.Status.Phase = v1alpha1.PhaseHealthy
+		newC.Status = metav1.ConditionTrue
+		newC.Reason = "GPUOperational"
+		newC.Message = "GPU is operating within normal parameters"
+	}
+
+	// break loop when conditions haven't changed
+	if existing == nil || existing.Reason != newC.Reason {
+		gpu.Status.ObservedGeneration = gpu.Generation
+		meta.SetStatusCondition(&gpu.Status.Conditions, newC)
+		err = r.Status().Update(ctx, &gpu)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed updating status for %s: %w", gpu.Spec.GPUID, err)
+		}
+	}
+
+	log.Info("reconciled", "gpu", gpu.Spec.GPUID, "phase", gpu.Status.Phase)
+
+	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GPUHealthReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gpuv1alpha1.GPUHealth{}).
+		For(&v1alpha1.GPUHealth{}).
 		Named("gpuhealth").
 		Complete(r)
 }
