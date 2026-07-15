@@ -36,3 +36,10 @@ export type GPUHealth = {
   memory: Memory;
   power: Power;
 };
+
+export type SimulationSettings = {
+  speed_multiplier: number;
+  healthy_to_warning_rate: number;
+  warning_to_critical_rate: number;
+  warning_to_healthy_rate: number;
+};
