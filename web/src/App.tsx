@@ -14,7 +14,8 @@ import {
 import { useGPUFleet } from "./hooks/useGPUFleet";
 import GPUList from "./components/GPUList";
 import FleetSummary from "./components/FleetSummary";
-import { DarkMode, LightMode } from "@mui/icons-material";
+import { SimulationSettingsDrawer } from "./components/SimulationSettingsDrawer";
+import { DarkMode, LightMode, Settings } from "@mui/icons-material";
 
 const getInitialMode = (): "light" | "dark" => {
   const saved = localStorage.getItem("theme-mode");
@@ -26,6 +27,7 @@ const getInitialMode = (): "light" | "dark" => {
 
 function App() {
   const [mode, setMode] = useState<"light" | "dark">(getInitialMode);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const toggleMode = () => {
     const next = mode === "dark" ? "light" : "dark";
     setMode(next);
@@ -43,6 +45,13 @@ function App() {
             GPU Fleet Monitor
           </Typography>
           <IconButton
+            onClick={() => setSettingsOpen(true)}
+            color="inherit"
+            aria-label="Simulation settings"
+          >
+            <Settings />
+          </IconButton>
+          <IconButton
             onClick={toggleMode}
             color="inherit"
             aria-label="Toggle theme"
@@ -51,6 +60,10 @@ function App() {
           </IconButton>
         </Toolbar>
       </AppBar>
+      <SimulationSettingsDrawer
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
       <Container
         sx={{ pt: 3, display: "flex", flexDirection: "column", gap: 3 }}
       >
