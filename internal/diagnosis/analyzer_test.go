@@ -18,7 +18,7 @@ func TestAnalyzeGpuCoreTemp(t *testing.T) {
 		},
 	}
 	expectedTime := time.Now().UTC()
-	expectedCode := "HIGH_TEMPERATURE"
+	expectedCode := "ThermalThrottle"
 	expectedDescription := fmt.Sprintf("GPU Core Temperature Critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GPUCoreCelsius, health.Temperature.CriticalThreshold)
 	expectedSeverity := SeverityCritical
 
@@ -68,8 +68,8 @@ func TestAnalyzeGpuCoreTempWarning(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d", len(d.Findings))
 	}
 	f := d.Findings[0]
-	if f.Code != "HIGH_TEMPERATURE" {
-		t.Errorf("expected HIGH_TEMPERATURE, got %s", f.Code)
+	if f.Code != "ThermalThrottle" {
+		t.Errorf("expected ThermalThrottle, got %s", f.Code)
 	}
 	if f.Severity != SeverityMedium {
 		t.Errorf("expected medium, got %s", f.Severity)
@@ -97,8 +97,8 @@ func TestAnalyzeMemoryTempWarning(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d", len(d.Findings))
 	}
 	f := d.Findings[0]
-	if f.Code != "HIGH_TEMPERATURE" {
-		t.Errorf("expected HIGH_TEMPERATURE, got %s", f.Code)
+	if f.Code != "ThermalThrottle" {
+		t.Errorf("expected ThermalThrottle, got %s", f.Code)
 	}
 	if f.Severity != SeverityMedium {
 		t.Errorf("expected medium, got %s", f.Severity)
@@ -126,8 +126,8 @@ func TestAnalyzeMemoryTempCritical(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d", len(d.Findings))
 	}
 	f := d.Findings[0]
-	if f.Code != "HIGH_TEMPERATURE" {
-		t.Errorf("expected HIGH_TEMPERATURE, got %s", f.Code)
+	if f.Code != "ThermalThrottle" {
+		t.Errorf("expected ThermalThrottle, got %s", f.Code)
 	}
 	if f.Severity != SeverityCritical {
 		t.Errorf("expected critical, got %s", f.Severity)
@@ -153,8 +153,8 @@ func TestAnalyzeECCSingleBitErrors(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d", len(d.Findings))
 	}
 	f := d.Findings[0]
-	if f.Code != "ECC_SINGLE_BIT_ERRORS" {
-		t.Errorf("expected ECC_SINGLE_BIT_ERRORS, got %s", f.Code)
+	if f.Code != "ECCSingleBitError" {
+		t.Errorf("expected ECCSingleBitError, got %s", f.Code)
 	}
 	if f.Severity != SeverityMedium {
 		t.Errorf("expected medium, got %s", f.Severity)
@@ -180,15 +180,15 @@ func TestAnalyzeECCDoubleBitErrors(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d", len(d.Findings))
 	}
 	f := d.Findings[0]
-	if f.Code != "ECC_DOUBLE_BIT_ERROR" {
-		t.Errorf("expected ECC_DOUBLE_BIT_ERROR, got %s", f.Code)
+	if f.Code != "ECCDoubleBitError" {
+		t.Errorf("expected ECCDoubleBitError, got %s", f.Code)
 	}
 	if f.Severity != SeverityCritical {
 		t.Errorf("expected critical, got %s", f.Severity)
 	}
 }
 
-func TestAnalyzeHighPowerUtilization(t *testing.T) {
+func TestAnalyzePowerCapped(t *testing.T) {
 	health := &gpu.GPUHealth{
 		GPUID:       "GPU-00001",
 		Utilization: 50.0,
@@ -199,7 +199,7 @@ func TestAnalyzeHighPowerUtilization(t *testing.T) {
 		Power: gpu.Power{
 			DrawWatts:   665.0,
 			LimitWatts:  700.0,
-			Utilization: 95.0, // at the high threshold
+			PowerCapped: true,
 		},
 	}
 	ts := time.Now().UTC()
@@ -209,8 +209,8 @@ func TestAnalyzeHighPowerUtilization(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d", len(d.Findings))
 	}
 	f := d.Findings[0]
-	if f.Code != "POWER_LIMIT_APPROACHED" {
-		t.Errorf("expected POWER_LIMIT_APPROACHED, got %s", f.Code)
+	if f.Code != "PowerCapped" {
+		t.Errorf("expected PowerCapped, got %s", f.Code)
 	}
 	if f.Severity != SeverityHigh {
 		t.Errorf("expected high, got %s", f.Severity)
@@ -233,8 +233,8 @@ func TestAnalyzeLowGPUUtilization(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d", len(d.Findings))
 	}
 	f := d.Findings[0]
-	if f.Code != "LOW_GPU_UTILIZATION" {
-		t.Errorf("expected LOW_GPU_UTILIZATION, got %s", f.Code)
+	if f.Code != "LowUtilization" {
+		t.Errorf("expected LowUtilization, got %s", f.Code)
 	}
 	if f.Severity != SeverityMedium {
 		t.Errorf("expected medium, got %s", f.Severity)

@@ -64,6 +64,12 @@ type GPUHealthStatus struct {
 	// +optional
 	Phase GPUPhase `json:"phase,omitempty"`
 
+	// nodeNotReady tracks when a node is not ready. This value is set when a
+	// node is in the replacing phase and the node becomes NotReady=True and
+	// is reset to false when the node becomes NotReady=False
+	// +optional
+	NodeNotReady bool `json:"nodeNotReady,omitempty"`
+
 	// conditions reflect the current state of the GPUHealth resource using
 	// standard Kubernetes condition types.
 	// +listType=map
@@ -155,7 +161,7 @@ type Finding struct {
 }
 
 // FindingType identifies the category of a diagnostic observation.
-// +kubebuilder:validation:Enum=XIDError;ECCSingleBitError;ECCDoubleBitError;ThermalThrottle;MemoryLeak;PowerCapped;Unknown
+// +kubebuilder:validation:Enum=XIDError;ECCSingleBitError;ECCDoubleBitError;ThermalThrottle;MemoryLeak;PowerCapped;LowUtilization;Unknown
 type FindingType string
 
 const (
@@ -165,7 +171,13 @@ const (
 	FindingThermalThrottle   FindingType = "ThermalThrottle"
 	FindingMemoryLeak        FindingType = "MemoryLeak"
 	FindingPowerCapped       FindingType = "PowerCapped"
+	FindingLowUtilization    FindingType = "LowUtilization"
 	FindingUnknown           FindingType = "Unknown"
+)
+
+const (
+	SeverityWarning  string = "Warning"
+	SeverityCritical string = "Critical"
 )
 
 // +kubebuilder:object:root=true

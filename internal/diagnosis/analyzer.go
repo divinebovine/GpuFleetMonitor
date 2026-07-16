@@ -12,8 +12,7 @@ const (
 	memoryTempCritical        = 95.0
 	eccSingleBitCountWarning  = 6
 	eccDoubleBitCountCritical = 1
-	highPowerUtilization      = 95.0 // percent
-	lowGpuUtilization         = 5.0  // percent
+	lowGpuUtilization         = 5.0 // percent
 )
 
 func Analyze(health *gpu.GPUHealth, ts time.Time) *Diagnosis {
@@ -37,13 +36,13 @@ func generateFindings(health *gpu.GPUHealth) []Finding {
 	switch {
 	case health.Temperature.GPUCoreCelsius >= health.Temperature.CriticalThreshold:
 		findings = append(findings, Finding{
-			Code:        "HIGH_TEMPERATURE",
+			Code:        "ThermalThrottle",
 			Description: fmt.Sprintf("GPU Core Temperature Critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GPUCoreCelsius, health.Temperature.CriticalThreshold),
 			Severity:    SeverityCritical,
 		})
 	case health.Temperature.GPUCoreCelsius >= health.Temperature.WarningThreshold:
 		findings = append(findings, Finding{
-			Code:        "HIGH_TEMPERATURE",
+			Code:        "ThermalThrottle",
 			Description: fmt.Sprintf("GPU Core Temperature Warning - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GPUCoreCelsius, health.Temperature.WarningThreshold),
 			Severity:    SeverityMedium,
 		})
@@ -53,13 +52,13 @@ func generateFindings(health *gpu.GPUHealth) []Finding {
 	switch {
 	case health.Temperature.MemoryCelsius >= memoryTempCritical:
 		findings = append(findings, Finding{
-			Code:        "HIGH_TEMPERATURE",
+			Code:        "ThermalThrottle",
 			Description: fmt.Sprintf("Memory temperature critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.MemoryCelsius, memoryTempCritical),
 			Severity:    SeverityCritical,
 		})
 	case health.Temperature.MemoryCelsius >= memoryTempWarning:
 		findings = append(findings, Finding{
-			Code:        "HIGH_TEMPERATURE",
+			Code:        "ThermalThrottle",
 			Description: fmt.Sprintf("Memory core temperature warning - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.MemoryCelsius, memoryTempWarning),
 			Severity:    SeverityMedium,
 		})
@@ -68,7 +67,7 @@ func generateFindings(health *gpu.GPUHealth) []Finding {
 	// check memory errors
 	if health.Memory.ECCSingleBitErrors >= eccSingleBitCountWarning {
 		findings = append(findings, Finding{
-			Code:        "ECC_SINGLE_BIT_ERRORS",
+			Code:        "ECCSingleBitError",
 			Description: fmt.Sprintf("ECC single bit errors warning - %d errors detected which exceeds the acceptable threshold of %d errors", health.Memory.ECCSingleBitErrors, eccSingleBitCountWarning),
 			Severity:    SeverityMedium,
 		})
@@ -76,16 +75,16 @@ func generateFindings(health *gpu.GPUHealth) []Finding {
 
 	if health.Memory.ECCDoubleBitErrors >= eccDoubleBitCountCritical {
 		findings = append(findings, Finding{
-			Code:        "ECC_DOUBLE_BIT_ERROR",
+			Code:        "ECCDoubleBitError",
 			Description: fmt.Sprintf("ECC double bit errors critical - %d errors detected which exceeds the acceptable threshold of %d errors", health.Memory.ECCDoubleBitErrors, eccDoubleBitCountCritical),
 			Severity:    SeverityCritical,
 		})
 	}
 
 	// check power
-	if health.Power.Utilization >= highPowerUtilization {
+	if health.Power.PowerCapped {
 		findings = append(findings, Finding{
-			Code:        "POWER_LIMIT_APPROACHED",
+			Code:        "PowerCapped",
 			Description: fmt.Sprintf("Power draw high - drawing %.1f watts which exceeds the acceptable limit of %.1f watts", health.Power.DrawWatts, health.Power.LimitWatts),
 			Severity:    SeverityHigh,
 		})
@@ -94,7 +93,7 @@ func generateFindings(health *gpu.GPUHealth) []Finding {
 	// check gpu utililization
 	if health.Utilization <= lowGpuUtilization {
 		findings = append(findings, Finding{
-			Code:        "LOW_GPU_UTILIZATION",
+			Code:        "LowUtilization",
 			Description: fmt.Sprintf("GPU utilization low - GPU utilization %.1f%% which is under the acceptable limit of %.1f%%", health.Utilization, lowGpuUtilization),
 			Severity:    SeverityMedium,
 		})

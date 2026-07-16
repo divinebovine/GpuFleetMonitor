@@ -162,18 +162,20 @@ npm run dev   # http://localhost:5173
 - [x] CI — GitHub Actions on push/PR (build, vet, test with race detector)
 - [x] `web/` — React + TypeScript frontend (Vite) — fleet summary + 10,000-row virtualized GPU table with SSE streaming + simulation settings drawer
 - [x] `api/v1alpha1` — `GPUHealth` CRD (cluster-scoped, `gpu.nvidia.com/v1alpha1`) with phases, conditions, findings, remediation policy
-- [x] `internal/controller` — `GPUHealthReconciler` — full state machine: Healthy → Warning → Critical → Draining → Recovering → Healthy (or Failed after max attempts)
+- [x] `internal/controller` — `GPUHealthReconciler` — full state machine across all phases
   - Polls telemetry every 30s; debounces status writes via `SetStatusCondition`
   - `RemediationPolicyDrain`: cordons node, waits for pod eviction, transitions to Recovering, uncordons on recovery
+  - `RemediationPolicyReplace`: cordons node, records findings, tracks `NodeNotReady` state to detect hardware swap, transitions to Rejoining once node returns Ready, uncordons and returns to Healthy after telemetry confirms recovery
   - `RemediationPolicyEscalate`: sets `ConditionEscalationRequired`, pages human
-  - Attempt counter resets on spec change (`observedGeneration < generation`)
+  - `RemediationPolicyNone`: observes and records without automated action
+  - Attempt counter resets on spec change (`observedGeneration < generation`); transitions to Failed after `maxRemediationAttempts`
   - RBAC markers for `gpuhealths`, `pods`, `nodes`
+  - `--telemetry-url` CLI flag (defaults to `http://localhost:3000`)
+- [x] `internal/controller` tests — envtest suite with `httptest.Server` standing in for the telemetry service
 
 ## What's Next
 
-- Wire `TelemetryURL` as a CLI flag in `cmd/operator/main.go` (currently hard-coded to `:3000`)
 - Add ADRs (`docs/adr/`) for CRD scope, remediationPolicy enum, two-category observability design
-- `handleReplacing` / `handleRejoining` — hardware replacement flow
 - Persist diagnosis and escalation stores (PostgreSQL)
 - Add diagnoses and escalations views to the frontend
 - Fleet-wide scan: trigger `MonitorGPU` for all 10,000 GPUs in parallel

@@ -71,7 +71,7 @@ func (r *GPUHealthReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	var result ctrl.Result
 	switch gpuCR.Status.Phase {
 	case v1alpha1.PhaseFailed:
-		result, err = r.handleFailed(ctx, &gpuCR)
+		result, err = r.handleFailed()
 	case v1alpha1.PhaseDraining:
 		result, err = r.handleDraining(ctx, &gpuCR)
 	case v1alpha1.PhaseRecovering:
@@ -79,7 +79,7 @@ func (r *GPUHealthReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	case v1alpha1.PhaseReplacing:
 		result, err = r.handleReplacing(ctx, &gpuCR)
 	case v1alpha1.PhaseRejoining:
-		result, err = r.handleRejoining(ctx, &gpuCR)
+		result, err = r.handleRejoining(ctx, &gpuCR, telemetry)
 	default:
 		result, err = r.handleObserving(ctx, &gpuCR, telemetry)
 	}
@@ -88,7 +88,7 @@ func (r *GPUHealthReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return result, err
 }
 
-func (r *GPUHealthReconciler) handleFailed(ctx context.Context, gpuCR *v1alpha1.GPUHealth) (ctrl.Result, error) {
+func (r *GPUHealthReconciler) handleFailed() (ctrl.Result, error) {
 	// noop requeue slowly
 	return ctrl.Result{RequeueAfter: 120 * time.Second}, nil
 }
@@ -157,7 +157,7 @@ func (r *GPUHealthReconciler) handleRecovering(ctx context.Context, gpuCR *v1alp
 			Message:            "GPU is Healthy",
 		}
 
-		if err := r.uncordonNode(ctx, gpuCR); err != nil {
+		if _, err := r.uncordonNode(ctx, gpuCR); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -170,12 +170,139 @@ func (r *GPUHealthReconciler) handleRecovering(ctx context.Context, gpuCR *v1alp
 }
 
 func (r *GPUHealthReconciler) handleReplacing(ctx context.Context, gpuCR *v1alpha1.GPUHealth) (ctrl.Result, error) {
-	// TODO: Fill in the stub
-	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	// ensure the node is still cordoned
+	node, err := r.cordonNode(ctx, gpuCR)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	ready := slices.ContainsFunc(node.Status.Conditions, func(c corev1.NodeCondition) bool {
+		return c.Type == corev1.NodeReady && c.Status == corev1.ConditionTrue
+	})
+
+	if !gpuCR.Status.NodeNotReady && !ready {
+		// node has transitioned from being ready to now being not ready
+		// this is the signal that the node has gone down for replacement
+		gpuCR.Status.NodeNotReady = true
+		gpuCR.Status.ObservedGeneration = gpuCR.Generation
+		if err := r.Status().Update(ctx, gpuCR); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: 120 * time.Second}, nil
+	}
+
+	if gpuCR.Status.NodeNotReady && ready {
+		// node has transitioned from not being ready to now being ready
+		// this is the signal that the node has been replaced
+		gpuCR.Status.NodeNotReady = false
+		newPhase := v1alpha1.PhaseRejoining
+		newC := metav1.Condition{
+			Type:               v1alpha1.ConditionRemediationInProgress,
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: gpuCR.Generation,
+			Reason:             "GPURejoining",
+			Message:            "GPU is rejoining",
+		}
+
+		if err := r.handleStatusUpdate(ctx, gpuCR, newPhase, newC); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	// awaiting node replacement
+	return ctrl.Result{RequeueAfter: 120 * time.Second}, nil
 }
 
-func (r *GPUHealthReconciler) handleRejoining(ctx context.Context, gpuCR *v1alpha1.GPUHealth) (ctrl.Result, error) {
-	// TODO: Fill in the stub
+func (r *GPUHealthReconciler) getFindings(telemetry gpuModel.GPUHealth) []v1alpha1.Finding {
+	// TODO: Simulator does not produce XIDErrors or MemoryLeak and may be outside the scope of this simulator.
+	// TODO: Research DGM Exporter when time permits
+	var findings []v1alpha1.Finding
+
+	if telemetry.Memory.ECCSingleBitErrors > 0 {
+		findings = append(findings, v1alpha1.Finding{
+			Type:     v1alpha1.FindingECCSingleBitError,
+			Severity: v1alpha1.SeverityWarning,
+			Message: fmt.Sprintf("ECC single-bit errors detected - %d errors observed (threshold: 1)",
+				telemetry.Memory.ECCSingleBitErrors),
+			Count:      1,
+			ObservedAt: metav1.NewTime(time.Now()),
+		})
+	}
+
+	if telemetry.Memory.ECCDoubleBitErrors > 0 {
+		findings = append(findings, v1alpha1.Finding{
+			Type:     v1alpha1.FindingECCDoubleBitError,
+			Severity: v1alpha1.SeverityCritical,
+			Message: fmt.Sprintf("ECC double-bit errors detected - %d errors observed, immediate action required",
+				telemetry.Memory.ECCDoubleBitErrors),
+			Count:      1,
+			ObservedAt: metav1.NewTime(time.Now()),
+		})
+	}
+
+	if telemetry.Temperature.GPUCoreCelsius >= telemetry.Temperature.CriticalThreshold {
+		findings = append(findings, v1alpha1.Finding{
+			Type:     v1alpha1.FindingThermalThrottle,
+			Severity: v1alpha1.SeverityCritical,
+			Message: fmt.Sprintf("GPU core temperature critical - %.1f°C exceeds critical threshold of %.1f°C",
+				telemetry.Temperature.GPUCoreCelsius,
+				telemetry.Temperature.CriticalThreshold),
+			Count:      1,
+			ObservedAt: metav1.NewTime(time.Now()),
+		})
+	} else if telemetry.Temperature.GPUCoreCelsius >= telemetry.Temperature.WarningThreshold {
+		findings = append(findings, v1alpha1.Finding{
+			Type:     v1alpha1.FindingThermalThrottle,
+			Severity: v1alpha1.SeverityWarning,
+			Message: fmt.Sprintf("GPU core temperature elevated - %.1f°C exceeds warning threshold of %.1f°C",
+				telemetry.Temperature.GPUCoreCelsius,
+				telemetry.Temperature.WarningThreshold),
+			Count:      1,
+			ObservedAt: metav1.NewTime(time.Now()),
+		})
+	}
+
+	if telemetry.Power.PowerCapped {
+		findings = append(findings, v1alpha1.Finding{
+			Type:     v1alpha1.FindingPowerCapped,
+			Severity: v1alpha1.SeverityCritical,
+			Message: fmt.Sprintf("GPU power capped - drawing %.1fW against limit of %.1fW",
+				telemetry.Power.DrawWatts,
+				telemetry.Power.LimitWatts),
+			Count:      1,
+			ObservedAt: metav1.NewTime(time.Now()),
+		})
+	}
+
+	return findings
+}
+
+func (r *GPUHealthReconciler) handleRejoining(ctx context.Context, gpuCR *v1alpha1.GPUHealth, telemetry gpuModel.GPUHealth) (ctrl.Result, error) {
+	switch telemetry.HealthStatus {
+	case gpuModel.StatusCritical:
+		return r.handleRemediation(ctx, gpuCR, telemetry)
+	case gpuModel.StatusWarning:
+		// give the node time to settle
+		return ctrl.Result{RequeueAfter: 120 * time.Second}, nil
+	default:
+		if _, err := r.uncordonNode(ctx, gpuCR); err != nil {
+			return ctrl.Result{}, err
+		}
+		newPhase := v1alpha1.PhaseHealthy
+		newC := metav1.Condition{
+			Type:               v1alpha1.ConditionGPUHealthy,
+			ObservedGeneration: gpuCR.Generation,
+			Status:             metav1.ConditionTrue,
+			Reason:             "GPUHealthy",
+			Message:            "GPU is operating within normal parameters",
+		}
+		if err := r.handleStatusUpdate(ctx, gpuCR, newPhase, newC); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
@@ -241,7 +368,7 @@ func (r *GPUHealthReconciler) handleRemediation(ctx context.Context, gpuCR *v1al
 			return ctrl.Result{}, fmt.Errorf("failed updating status for %s: %w", gpuCR.Spec.GPUID, err)
 		}
 
-		return r.handleFailed(ctx, gpuCR)
+		return r.handleFailed()
 	}
 
 	switch gpuCR.Spec.RemediationPolicy {
@@ -255,7 +382,7 @@ func (r *GPUHealthReconciler) handleRemediation(ctx context.Context, gpuCR *v1al
 			Message:            "GPU is experiencing critical errors and requires draining",
 		}
 
-		if err := r.cordonNode(ctx, gpuCR); err != nil {
+		if _, err := r.cordonNode(ctx, gpuCR); err != nil {
 			return ctrl.Result{}, err
 		}
 	case v1alpha1.RemediationPolicyReplace:
@@ -267,6 +394,9 @@ func (r *GPUHealthReconciler) handleRemediation(ctx context.Context, gpuCR *v1al
 			Reason:             "GPUCritical",
 			Message:            "GPU is experiencing critical errors and requires replacing",
 		}
+
+		// collect findings
+		gpuCR.Status.Findings = append(gpuCR.Status.Findings, r.getFindings(telemetry)...)
 	case v1alpha1.RemediationPolicyEscalate:
 		newPhase = v1alpha1.PhaseCritical
 		newC = metav1.Condition{
@@ -294,32 +424,38 @@ func (r *GPUHealthReconciler) handleRemediation(ctx context.Context, gpuCR *v1al
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
-func (r *GPUHealthReconciler) cordonNode(ctx context.Context, gpuCR *v1alpha1.GPUHealth) error {
+func (r *GPUHealthReconciler) cordonNode(ctx context.Context, gpuCR *v1alpha1.GPUHealth) (corev1.Node, error) {
 	// cordon the node by making it unschedulable allowing it to drain
 	var node corev1.Node
 	if err := r.Get(ctx, client.ObjectKey{Name: gpuCR.Spec.NodeName}, &node); err != nil {
-		return err
-	}
-	node.Spec.Unschedulable = true
-	if err := r.Update(ctx, &node); err != nil {
-		return err
+		return corev1.Node{}, err
 	}
 
-	return nil
+	if !node.Spec.Unschedulable {
+		node.Spec.Unschedulable = true
+		if err := r.Update(ctx, &node); err != nil {
+			return corev1.Node{}, err
+		}
+	}
+
+	return node, nil
 }
 
-func (r *GPUHealthReconciler) uncordonNode(ctx context.Context, gpuCR *v1alpha1.GPUHealth) error {
+func (r *GPUHealthReconciler) uncordonNode(ctx context.Context, gpuCR *v1alpha1.GPUHealth) (corev1.Node, error) {
 	// uncordon the node by making it schedulable allowing it to recover
 	var node corev1.Node
 	if err := r.Get(ctx, client.ObjectKey{Name: gpuCR.Spec.NodeName}, &node); err != nil {
-		return err
-	}
-	node.Spec.Unschedulable = false
-	if err := r.Update(ctx, &node); err != nil {
-		return err
+		return corev1.Node{}, err
 	}
 
-	return nil
+	if node.Spec.Unschedulable {
+		node.Spec.Unschedulable = false
+		if err := r.Update(ctx, &node); err != nil {
+			return corev1.Node{}, err
+		}
+	}
+
+	return node, nil
 }
 
 func (r *GPUHealthReconciler) handleStatusUpdate(ctx context.Context, gpuCR *v1alpha1.GPUHealth, newPhase v1alpha1.GPUPhase, newCondition metav1.Condition) error {
