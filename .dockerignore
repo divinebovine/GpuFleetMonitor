@@ -9,3 +9,9 @@
 # Re-include Go module files
 !go.mod
 !go.sum
+
+# Re-include assets needed for demo builds
+!web/
+web/node_modules/
+!hack/demo/nginx.conf
+!config/crd/bases/

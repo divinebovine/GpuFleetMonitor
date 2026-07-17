@@ -5,6 +5,57 @@
 
 A Go microservices project simulating a GPU fleet health monitoring system for 10,000 GPUs, with a React + TypeScript frontend and a Kubernetes operator for automated GPU health remediation.
 
+> Built as a learning project to explore Go idioms, the standard library, and the broader ecosystem — covering HTTP services, Temporal workflows, Kubernetes operators, and React frontends connected by SSE.
+
+## Demo
+
+Spin up the full stack — Kubernetes (k3s), Temporal, all services, and the frontend — with a single command. No local tooling required beyond Docker.
+
+```bash
+docker compose -f hack/demo/docker-compose.yml up -d
+```
+
+Once running (allow ~2 minutes for k3s and Temporal to initialize):
+
+| URL | What you'll see |
+|---|---|
+| http://localhost:5173 | Fleet dashboard — 10,000 GPUs streaming live health state |
+| http://localhost:8080 | Temporal UI — MonitorGPU workflow executions |
+| http://localhost:8082/v1/escalations | Escalation records (JSON) |
+
+Watch the operator manage 12 GPUs across 3 nodes:
+
+```bash
+# Extract the kubeconfig from the k3s container
+docker compose -f hack/demo/docker-compose.yml exec k3s-server \
+  cat /kubeconfig/config | sed 's|127.0.0.1|localhost|g' > /tmp/demo-kube.yaml
+
+# Watch phase transitions in real time
+kubectl --kubeconfig /tmp/demo-kube.yaml get gpuhealths -w
+
+# Inspect conditions and findings on a specific GPU
+kubectl --kubeconfig /tmp/demo-kube.yaml describe gpuhealth gpu-drain-1
+```
+
+**What the 12 GPUs demonstrate:**
+- `gpu-node-1` (GPU-00001–00004) — `Drain` policy: operator cordons the node and evicts pods when a GPU goes Critical
+- `gpu-node-2` (GPU-00005–00008) — `Escalate` policy: operator sets `EscalationRequired` condition and Temporal triggers the escalation workflow
+- `gpu-node-3` (GPU-00009–00012) — `None` policy: operator observes and records findings without automated action
+
+Speed up the simulator to trigger critical events faster — either via the dashboard's settings drawer at http://localhost:5173 or directly:
+
+```bash
+curl -X PUT http://localhost:3000/v1/simulation/settings \
+  -H "Content-Type: application/json" \
+  -d '{"speed_multiplier":50,"warning_to_critical_rate":0.8}'
+```
+
+Tear down:
+
+```bash
+docker compose -f hack/demo/docker-compose.yml down -v
+```
+
 ## Architecture
 
 ```

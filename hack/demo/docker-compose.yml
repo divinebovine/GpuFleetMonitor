@@ -1,0 +1,218 @@
+name: gpu-fleet-demo
+
+services:
+
+  # ── Temporal ───────────────────────────────────────────────────────────────
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_USER: temporal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  temporal:
+    image: temporalio/auto-setup:latest
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    ports:
+      - "7233:7233"
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 7233"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  temporal-ui:
+    image: temporalio/ui:latest
+    depends_on:
+      - temporal
+    ports:
+      - "8080:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+
+  # ── GPU fleet services ─────────────────────────────────────────────────────
+
+  telemetry:
+    build:
+      context: ../..
+      dockerfile: hack/demo/Dockerfile.services
+    command: ["/usr/local/bin/telemetry"]
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/v1/gpus/GPU-00001 -o /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  diagnosis:
+    build:
+      context: ../..
+      dockerfile: hack/demo/Dockerfile.services
+    command: ["/usr/local/bin/diagnosis"]
+    ports:
+      - "8081:8081"
+
+  escalation:
+    build:
+      context: ../..
+      dockerfile: hack/demo/Dockerfile.services
+    command: ["/usr/local/bin/escalation"]
+    ports:
+      - "8082:8082"
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: hack/demo/Dockerfile.services
+    command: ["/usr/local/bin/worker"]
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on:
+      temporal:
+        condition: service_healthy
+      telemetry:
+        condition: service_healthy
+    restart: on-failure
+
+  # ── Kubernetes (k3s) ───────────────────────────────────────────────────────
+
+  k3s-server:
+    image: rancher/k3s:v1.31.5-k3s1
+    command: server --disable traefik --disable metrics-server --tls-san k3s-server
+    privileged: true
+    environment:
+      - K3S_TOKEN=nvidia-demo-secret
+      - K3S_KUBECONFIG_OUTPUT=/kubeconfig/config
+      - K3S_KUBECONFIG_MODE=666
+    volumes:
+      - k3s-server-data:/var/lib/rancher/k3s
+      - kubeconfig:/kubeconfig
+    ports:
+      - "6443:6443"
+    healthcheck:
+      test: ["CMD", "k3s", "kubectl", "get", "--raw", "/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  k3s-agent-1:
+    image: rancher/k3s:v1.31.5-k3s1
+    command: agent
+    privileged: true
+    hostname: gpu-node-1
+    environment:
+      - K3S_URL=https://k3s-server:6443
+      - K3S_TOKEN=nvidia-demo-secret
+    volumes:
+      - k3s-agent-1-data:/var/lib/rancher/k3s
+    depends_on:
+      k3s-server:
+        condition: service_healthy
+
+  k3s-agent-2:
+    image: rancher/k3s:v1.31.5-k3s1
+    command: agent
+    privileged: true
+    hostname: gpu-node-2
+    environment:
+      - K3S_URL=https://k3s-server:6443
+      - K3S_TOKEN=nvidia-demo-secret
+    volumes:
+      - k3s-agent-2-data:/var/lib/rancher/k3s
+    depends_on:
+      k3s-server:
+        condition: service_healthy
+
+  k3s-agent-3:
+    image: rancher/k3s:v1.31.5-k3s1
+    command: agent
+    privileged: true
+    hostname: gpu-node-3
+    environment:
+      - K3S_URL=https://k3s-server:6443
+      - K3S_TOKEN=nvidia-demo-secret
+    volumes:
+      - k3s-agent-3-data:/var/lib/rancher/k3s
+    depends_on:
+      k3s-server:
+        condition: service_healthy
+
+  # ── Kubernetes operator ────────────────────────────────────────────────────
+  # Patches the k3s kubeconfig (127.0.0.1 → k3s-server) before starting.
+
+  operator:
+    build:
+      context: ../..
+      dockerfile: hack/demo/Dockerfile.services
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        sed 's|127.0.0.1:6443|k3s-server:6443|g' /kubeconfig/config > /tmp/kube.yaml &&
+        KUBECONFIG=/tmp/kube.yaml /usr/local/bin/manager
+        --telemetry-url http://telemetry:3000
+        --health-probe-bind-address :0
+        --metrics-bind-address :0
+    volumes:
+      - kubeconfig:/kubeconfig:ro
+    depends_on:
+      k3s-server:
+        condition: service_healthy
+      telemetry:
+        condition: service_healthy
+    restart: on-failure
+
+  # ── Demo setup (init) ──────────────────────────────────────────────────────
+  # Installs the CRD, waits for all 3 worker nodes, creates 12 GPUHealth CRs,
+  # and starts a MonitorGPU Temporal workflow for each GPU.
+
+  demo-setup:
+    build:
+      context: ../..
+      dockerfile: hack/demo/Dockerfile.services
+    command: ["/usr/local/bin/demo-setup"]
+    environment:
+      - KUBECONFIG=/kubeconfig/config
+      - K3S_SERVER=k3s-server:6443
+      - TEMPORAL_ADDRESS=temporal:7233
+    volumes:
+      - kubeconfig:/kubeconfig:ro
+    depends_on:
+      k3s-server:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+      operator:
+        condition: service_started
+
+  # ── Frontend ───────────────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: hack/demo/Dockerfile.frontend
+    ports:
+      - "5173:80"
+
+volumes:
+  kubeconfig:
+  k3s-server-data:
+  k3s-agent-1-data:
+  k3s-agent-2-data:
+  k3s-agent-3-data:
