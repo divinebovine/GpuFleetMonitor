@@ -49,7 +49,7 @@ func newTelemetryServer(status gpuModel.HealthStatus) *httptest.Server {
 func newTelemetryServerWithHealth(health gpuModel.GPUHealth) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(health)
+		_ = json.NewEncoder(w).Encode(health)
 	}))
 }
 

@@ -18,7 +18,6 @@ func main() {
 
 	// middleware
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP) // Pick the correct middleware for your setup
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer) // Recovers from panics
 
@@ -52,7 +51,7 @@ func (h *handler) postDiagnosis(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(d)
+	_ = json.NewEncoder(w).Encode(d)
 }
 
 func (h *handler) getDiagnosis(w http.ResponseWriter, r *http.Request) {
@@ -65,12 +64,12 @@ func (h *handler) getDiagnosis(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d)
+	_ = json.NewEncoder(w).Encode(d)
 }
 
 func (h *handler) getDiagnoses(w http.ResponseWriter, r *http.Request) {
 	d := h.store.List()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d)
+	_ = json.NewEncoder(w).Encode(d)
 }

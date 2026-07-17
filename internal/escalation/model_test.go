@@ -5,10 +5,15 @@ import (
 	"time"
 )
 
+const (
+	testEscID    = "esc-001"
+	testEscGPUID = "GPU-00005"
+)
+
 func TestResolve(t *testing.T) {
 	e := &Escalation{
-		ID:     "esc-001",
-		GPUID:  "GPU-00005",
+		ID:     testEscID,
+		GPUID:  testEscGPUID,
 		Status: StatusOpen,
 	}
 
@@ -30,8 +35,8 @@ func TestResolve(t *testing.T) {
 
 func TestResolveDoesNotAffectOtherFields(t *testing.T) {
 	e := &Escalation{
-		ID:          "esc-001",
-		GPUID:       "GPU-00005",
+		ID:          testEscID,
+		GPUID:       testEscGPUID,
 		DiagnosisID: "diag-GPU-00005",
 		Severity:    "critical",
 		Status:      StatusOpen,
@@ -39,10 +44,10 @@ func TestResolveDoesNotAffectOtherFields(t *testing.T) {
 
 	e.Resolve(time.Now().UTC())
 
-	if e.ID != "esc-001" {
+	if e.ID != testEscID {
 		t.Errorf("expected ID esc-001, got %s", e.ID)
 	}
-	if e.GPUID != "GPU-00005" {
+	if e.GPUID != testEscGPUID {
 		t.Errorf("expected GPUID GPU-00005, got %s", e.GPUID)
 	}
 	if e.DiagnosisID != "diag-GPU-00005" {

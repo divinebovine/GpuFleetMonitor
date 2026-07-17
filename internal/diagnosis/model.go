@@ -11,6 +11,15 @@ const (
 	SeverityCritical Severity = "critical"
 )
 
+const (
+	CodeGPUThermalThrottle    = "GPUThermalThrottle"
+	CodeMemoryThermalThrottle = "MemoryThermalThrottle"
+	CodeECCSingleBitError     = "ECCSingleBitError"
+	CodeECCDoubleBitError     = "ECCDoubleBitError"
+	CodePowerCapped           = "PowerCapped"
+	CodeLowUtilization        = "LowUtilization"
+)
+
 type Finding struct {
 	Code        string   `json:"code"`
 	Description string   `json:"description"`

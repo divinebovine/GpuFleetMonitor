@@ -8,9 +8,11 @@ import (
 	"github.com/divinebovine/GpuFleetMonitor/internal/gpu"
 )
 
+const testGPUID = "GPU-00001"
+
 func TestAnalyzeGpuCoreTemp(t *testing.T) {
 	health := &gpu.GPUHealth{
-		GPUID:       "GPU-00001",
+		GPUID:       testGPUID,
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
 			GPUCoreCelsius:           92.0,
@@ -18,7 +20,7 @@ func TestAnalyzeGpuCoreTemp(t *testing.T) {
 		},
 	}
 	expectedTime := time.Now().UTC()
-	expectedCode := "GPUThermalThrottle"
+	expectedCode := CodeGPUThermalThrottle
 	expectedDescription := fmt.Sprintf("GPU Core Temperature Critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GPUCoreCelsius, health.Temperature.GPUCoreCriticalThreshold)
 	expectedSeverity := SeverityCritical
 
@@ -53,7 +55,7 @@ func TestAnalyzeGpuCoreTemp(t *testing.T) {
 
 func TestAnalyzeGpuCoreTempWarning(t *testing.T) {
 	health := &gpu.GPUHealth{
-		GPUID:       "GPU-00001",
+		GPUID:       testGPUID,
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
 			GPUCoreCelsius:           80.0, // above warning (75), below critical (84)
@@ -68,7 +70,7 @@ func TestAnalyzeGpuCoreTempWarning(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d", len(d.Findings))
 	}
 	f := d.Findings[0]
-	if f.Code != "GPUThermalThrottle" {
+	if f.Code != CodeGPUThermalThrottle {
 		t.Errorf("expected GPUThermalThrottle, got %s", f.Code)
 	}
 	if f.Severity != SeverityMedium {
@@ -82,7 +84,7 @@ func TestAnalyzeGpuCoreTempWarning(t *testing.T) {
 
 func TestAnalyzeMemoryTempWarning(t *testing.T) {
 	health := &gpu.GPUHealth{
-		GPUID:       "GPU-00001",
+		GPUID:       testGPUID,
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
 			MemoryCelsius:            90.0, // above warning (85), below critical (95)
@@ -99,7 +101,7 @@ func TestAnalyzeMemoryTempWarning(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d", len(d.Findings))
 	}
 	f := d.Findings[0]
-	if f.Code != "MemoryThermalThrottle" {
+	if f.Code != CodeMemoryThermalThrottle {
 		t.Errorf("expected MemoryThermalThrottle, got %s", f.Code)
 	}
 	if f.Severity != SeverityMedium {
@@ -113,7 +115,7 @@ func TestAnalyzeMemoryTempWarning(t *testing.T) {
 
 func TestAnalyzeMemoryTempCritical(t *testing.T) {
 	health := &gpu.GPUHealth{
-		GPUID:       "GPU-00001",
+		GPUID:       testGPUID,
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
 			MemoryCelsius:            96.0, // above critical (95)
@@ -130,7 +132,7 @@ func TestAnalyzeMemoryTempCritical(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d", len(d.Findings))
 	}
 	f := d.Findings[0]
-	if f.Code != "MemoryThermalThrottle" {
+	if f.Code != CodeMemoryThermalThrottle {
 		t.Errorf("expected MemoryThermalThrottle, got %s", f.Code)
 	}
 	if f.Severity != SeverityCritical {
@@ -140,7 +142,7 @@ func TestAnalyzeMemoryTempCritical(t *testing.T) {
 
 func TestAnalyzeECCSingleBitErrors(t *testing.T) {
 	health := &gpu.GPUHealth{
-		GPUID:       "GPU-00001",
+		GPUID:       testGPUID,
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
 			GPUCoreWarningThreshold:  75.0,
@@ -167,7 +169,7 @@ func TestAnalyzeECCSingleBitErrors(t *testing.T) {
 
 func TestAnalyzeECCDoubleBitErrors(t *testing.T) {
 	health := &gpu.GPUHealth{
-		GPUID:       "GPU-00001",
+		GPUID:       testGPUID,
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
 			GPUCoreWarningThreshold:  75.0,
@@ -194,7 +196,7 @@ func TestAnalyzeECCDoubleBitErrors(t *testing.T) {
 
 func TestAnalyzePowerCapped(t *testing.T) {
 	health := &gpu.GPUHealth{
-		GPUID:       "GPU-00001",
+		GPUID:       testGPUID,
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
 			GPUCoreWarningThreshold:  75.0,
@@ -223,7 +225,7 @@ func TestAnalyzePowerCapped(t *testing.T) {
 
 func TestAnalyzeLowGPUUtilization(t *testing.T) {
 	health := &gpu.GPUHealth{
-		GPUID:       "GPU-00001",
+		GPUID:       testGPUID,
 		Utilization: 3.0, // below low threshold (5)
 		Temperature: gpu.Temperature{
 			GPUCoreWarningThreshold:  75.0,
@@ -247,7 +249,7 @@ func TestAnalyzeLowGPUUtilization(t *testing.T) {
 
 func TestAnalyzeNoFindings(t *testing.T) {
 	health := &gpu.GPUHealth{
-		GPUID:       "GPU-00001",
+		GPUID:       testGPUID,
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
 			GPUCoreCelsius:           60.0,
@@ -275,14 +277,13 @@ func TestAnalyzeNoFindings(t *testing.T) {
 }
 
 func TestGetWorstSeverityRanksCorrectly(t *testing.T) {
-	var findings []Finding
-
 	severities := []Severity{
 		SeverityLow,
 		SeverityMedium,
 		SeverityHigh,
 		SeverityCritical,
 	}
+	findings := make([]Finding, 0, len(severities))
 
 	for _, value := range severities {
 		findings = append(findings, Finding{Severity: value})

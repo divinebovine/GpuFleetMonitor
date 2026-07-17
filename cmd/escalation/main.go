@@ -17,7 +17,6 @@ func main() {
 
 	// middleware
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP) // Pick the correct middleware for your setup
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer) // Recovers from panics
 
@@ -49,7 +48,10 @@ func (h *handler) createEscalationHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	var e *escalation.Escalation
-	json.NewDecoder(r.Body).Decode(&e)
+	if err := json.NewDecoder(r.Body).Decode(&e); err != nil {
+		http.Error(w, "Bad Request: Unable to process payload", http.StatusBadRequest)
+		return
+	}
 
 	if e == nil {
 		http.Error(w, "Bad Request: Unable to process payload", http.StatusBadRequest)
@@ -59,7 +61,7 @@ func (h *handler) createEscalationHandler(w http.ResponseWriter, r *http.Request
 	h.store.Save(*e)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(e)
+	_ = json.NewEncoder(w).Encode(e)
 }
 
 func (h *handler) getEscalationByIDHandler(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +76,7 @@ func (h *handler) getEscalationByIDHandler(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(e)
+	_ = json.NewEncoder(w).Encode(e)
 }
 
 func (h *handler) getEscalationsHandler(w http.ResponseWriter, r *http.Request) {
@@ -82,7 +84,7 @@ func (h *handler) getEscalationsHandler(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(all)
+	_ = json.NewEncoder(w).Encode(all)
 }
 
 func (h *handler) resolveEscalationHandler(w http.ResponseWriter, r *http.Request) {

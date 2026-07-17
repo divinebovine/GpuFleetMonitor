@@ -36,7 +36,7 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 	}
 
 	if id > (TotalGpus) || id < 1 {
-		return nil, fmt.Errorf("Invalid GPU ID: ID must be between 1 - %d", TotalGpus)
+		return nil, fmt.Errorf("invalid GPU ID: must be between 1 and %d", TotalGpus)
 	}
 
 	nodeID := ((id - 1) / GpusPerNode) + 1
@@ -50,13 +50,13 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 	var model string
 	switch {
 	case id < 2001:
-		model = "H100"
+		model = ModelH100
 	case id < 5001:
-		model = "A100"
+		model = ModelA100
 	case id < 7001:
-		model = "V100"
+		model = ModelV100
 	case id < 10001:
-		model = "A30"
+		model = ModelA30
 	}
 
 	status, ok := DefaultStore.GetStatus(gpuID)

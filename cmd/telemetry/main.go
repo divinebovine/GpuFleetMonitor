@@ -25,7 +25,6 @@ func main() {
 
 	// middleware
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP) // Pick the correct middleware for your setup
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer) // Recovers from panics
 
@@ -59,7 +58,7 @@ func getGpuHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(gpuHealth)
+	_ = json.NewEncoder(w).Encode(gpuHealth)
 }
 
 func getAllGPUsHandler(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +88,7 @@ func eventStreamAllGPUs(w http.ResponseWriter, r *http.Request) {
 		select {
 		case h, ok := <-results:
 			if !ok {
-				fmt.Fprintf(w, "event: done\ndata: {}\n\n")
+				_, _ = fmt.Fprintf(w, "event: done\ndata: {}\n\n")
 				flusher.Flush()
 				return
 			}
@@ -100,7 +99,7 @@ func eventStreamAllGPUs(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			fmt.Fprintf(w, "data: %s\n\n", data)
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 			flusher.Flush()
 		case <-ctx.Done():
 			return
@@ -118,7 +117,7 @@ func fetchAllGPUs(w http.ResponseWriter, r *http.Request) {
 		case h, ok := <-results:
 			if !ok {
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(healths)
+				_ = json.NewEncoder(w).Encode(healths)
 				return
 			}
 			healths = append(healths, h)
@@ -146,9 +145,7 @@ func runWorkerPool(ctx context.Context, allIDs []string) <-chan *gpu.GPUHealth {
 	}()
 
 	for range workerPoolSize {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for id := range jobs {
 				h, err := gpu.GetHealth(ctx, id)
 
@@ -164,7 +161,7 @@ func runWorkerPool(ctx context.Context, allIDs []string) <-chan *gpu.GPUHealth {
 					return
 				}
 			}
-		}()
+		})
 	}
 
 	go func() {
@@ -178,11 +175,11 @@ func getSimulationSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	settings := gpu.Config.Get()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(settings)
+	_ = json.NewEncoder(w).Encode(settings)
 }
 
 func putSimulationSettingsHandler(w http.ResponseWriter, r *http.Request) {
-	var settings *gpu.SimulationSettings = &gpu.SimulationSettings{}
+	settings := &gpu.SimulationSettings{}
 	err := json.NewDecoder(r.Body).Decode(settings)
 
 	if err != nil {
@@ -196,7 +193,7 @@ func putSimulationSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if settings.HealthyToWarningRate < 0 || settings.HealthyToWarningRate > 1.0 {
-		http.Error(w, "healthy to warning rate must be greater than or equal to 0.0 and less than or equal to 1.0", http.StatusBadRequest)
+		http.Error(w, "healthy to warning rate must be between 0.0 and 1.0", http.StatusBadRequest)
 		return
 	}
 
@@ -206,17 +203,17 @@ func putSimulationSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if settings.WarningToCriticalRate+settings.WarningToHealthyRate >= 1.0 {
-		http.Error(w, "warning to critical rate and warning to healthy rate cannot sum to a number greater than or equal to 1.0", http.StatusBadRequest)
+		http.Error(w, "warning to critical rate and warning to healthy rate must sum to less than 1.0", http.StatusBadRequest)
 		return
 	}
 
 	confirmedSettings := gpu.Config.Set(settings)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(confirmedSettings)
+	_ = json.NewEncoder(w).Encode(confirmedSettings)
 }
 
 func postResetSimulationSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	confirmedSettings := gpu.Config.Reset()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(confirmedSettings)
+	_ = json.NewEncoder(w).Encode(confirmedSettings)
 }
