@@ -85,6 +85,14 @@ spec:
                 - Replace
                 - Escalate
                 type: string
+              replacementTimeoutSeconds:
+                default: 1800
+                description: |-
+                  replacementTimeoutSeconds is how long to wait for a node to cycle through
+                  NotReady before assuming the replacement happened without a reboot and escalating.
+                format: int32
+                minimum: 60
+                type: integer
             required:
             - gpuID
             - nodeName

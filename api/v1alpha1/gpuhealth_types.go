@@ -42,6 +42,13 @@ type GPUHealthSpec struct {
 	// +kubebuilder:default=3
 	// +optional
 	MaxRemediationAttempts int32 `json:"maxRemediationAttempts,omitempty"`
+
+	// replacementTimeoutSeconds is how long to wait for a node to cycle through
+	// NotReady before assuming the replacement happened without a reboot and escalating.
+	// +kubebuilder:default=1800
+	// +kubebuilder:validation:Minimum=60
+	// +optional
+	ReplacementTimeoutSeconds int32 `json:"replacementTimeoutSeconds,omitempty"`
 }
 
 // RemediationPolicy defines how the operator responds to a GPU entering a critical state.
