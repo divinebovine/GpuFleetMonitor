@@ -29,8 +29,8 @@ type GPUSpec struct {
 const GB = 1024 * 1024 * 1024
 
 var gpuSpecs = map[string]GPUSpec{
-	"H100": {
-		model:         "H100",
+	ModelH100: {
+		model:         ModelH100,
 		maxPowerWatts: 700.0,
 		memoryBytes:   80 * GB,
 		power: map[HealthStatus]range64{
@@ -40,8 +40,8 @@ var gpuSpecs = map[string]GPUSpec{
 		},
 		temperature: defaultTempRanges,
 	},
-	"A100": {
-		model:         "A100",
+	ModelA100: {
+		model:         ModelA100,
 		maxPowerWatts: 400.0,
 		memoryBytes:   80 * GB,
 		power: map[HealthStatus]range64{
@@ -51,8 +51,8 @@ var gpuSpecs = map[string]GPUSpec{
 		},
 		temperature: defaultTempRanges,
 	},
-	"V100": {
-		model:         "V100",
+	ModelV100: {
+		model:         ModelV100,
 		maxPowerWatts: 300.0,
 		memoryBytes:   32 * GB,
 		power: map[HealthStatus]range64{
@@ -62,8 +62,8 @@ var gpuSpecs = map[string]GPUSpec{
 		},
 		temperature: defaultTempRanges,
 	},
-	"A30": {
-		model:         "A30",
+	ModelA30: {
+		model:         ModelA30,
 		maxPowerWatts: 165.0,
 		memoryBytes:   24 * GB,
 		power: map[HealthStatus]range64{

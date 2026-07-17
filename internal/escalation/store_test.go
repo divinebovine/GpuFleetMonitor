@@ -8,10 +8,10 @@ import (
 
 func TestSaveAndGet(t *testing.T) {
 	s := NewStore()
-	expected := Escalation{ID: "esc-001", GPUID: "GPU-00005"}
+	expected := Escalation{ID: testEscID, GPUID: testEscGPUID}
 	s.Save(expected)
 
-	actual, ok := s.GetByID("esc-001")
+	actual, ok := s.GetByID(testEscID)
 	if !ok {
 		t.Fatal("expected to find escalation, got nothing")
 	}
@@ -49,11 +49,9 @@ func TestSaveThreadSafe(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for i := range 100 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			s.Save(Escalation{ID: fmt.Sprintf("esc-%d", i), GPUID: fmt.Sprintf("GPU-%05d", i+1)})
-		}()
+		})
 	}
 
 	wg.Wait()

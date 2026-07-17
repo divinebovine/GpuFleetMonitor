@@ -10,12 +10,21 @@ const (
 	StatusCritical HealthStatus = "critical"
 )
 
+const (
+	ModelH100 = "H100"
+	ModelA100 = "A100"
+	ModelV100 = "V100"
+	ModelA30  = "A30"
+)
+
 type Temperature struct {
-	GPUCoreCelsius    float64 `json:"gpu_core_celsius"`
-	MemoryCelsius     float64 `json:"memory_celsius"`
-	WarningThreshold  float64 `json:"warning_threshold"`
-	CriticalThreshold float64 `json:"critical_threshold"`
-	Throttling        bool    `json:"throttling"`
+	GPUCoreCelsius           float64 `json:"gpu_core_celsius"`
+	MemoryCelsius            float64 `json:"memory_celsius"`
+	GPUCoreWarningThreshold  float64 `json:"gpu_core_warning_threshold"`
+	GPUCoreCriticalThreshold float64 `json:"gpu_core_critical_threshold"`
+	MemoryWarningThreshold   float64 `json:"memory_warning_threshold"`
+	MemoryCriticalThreshold  float64 `json:"memory_critical_threshold"`
+	Throttling               bool    `json:"throttling"`
 }
 
 type Memory struct {

@@ -3,21 +3,24 @@
 [![Build](https://github.com/divinebovine/GpuFleetMonitor/actions/workflows/build.yml/badge.svg)](https://github.com/divinebovine/GpuFleetMonitor/actions/workflows/build.yml)
 [![Test](https://github.com/divinebovine/GpuFleetMonitor/actions/workflows/test.yml/badge.svg)](https://github.com/divinebovine/GpuFleetMonitor/actions/workflows/test.yml)
 
-A Go microservices project simulating a GPU fleet health monitoring system for 10,000 GPUs, with a React + TypeScript frontend.
+A Go microservices project simulating a GPU fleet health monitoring system for 10,000 GPUs, with a React + TypeScript frontend and a Kubernetes operator for automated GPU health remediation.
 
 ## Architecture
 
 ```
 cmd/
-  telemetry/main.go     → HTTP API on :3000  (GPU health queries)
+  telemetry/main.go     → HTTP API on :3000  (GPU health queries, simulation settings)
   diagnosis/main.go     → HTTP API on :8081  (diagnose a GPU)
   escalation/main.go    → HTTP API on :8082  (manage escalations)
   worker/main.go        → Temporal worker    (orchestrates workflows)
+  operator/main.go      → Kubernetes operator (GPU health CRD controller)
 
 internal/
   gpu/
     model.go            → GPUHealth, Temperature, Memory, Power structs
-    simulator.go        → GetHealth(gpuID) — deterministic simulation
+    simulator.go        → GetHealth(gpuID) — probabilistic simulation with tunable rates
+    config.go           → SimulationConfig — runtime-tunable rates + speed multiplier
+    ticker.go           → DefaultTicker — drives state transitions at configurable speed
     specs.go            → Per-model specs (power/temp ranges, memory size)
   diagnosis/
     model.go            → Diagnosis, Finding, Severity structs
@@ -29,6 +32,12 @@ internal/
   temporal/
     workflows/monitor.go → MonitorGPU workflow
     activities/          → health, diagnosis, escalation activities
+  controller/
+    gpuhealth_controller.go → GPUHealth reconciler — state machine (Healthy→Warning→Critical→Draining→Recovering→Healthy)
+
+api/v1alpha1/
+  gpuhealth_types.go    → GPUHealth CRD: spec, status, phases, conditions, findings
+  groupversion_info.go  → API group: gpu.nvidia.com/v1alpha1
 
 web/                    → React + TypeScript frontend (Vite, :5173)
 ```
@@ -43,8 +52,9 @@ web/                    → React + TypeScript frontend (Vite, :5173)
   - 2001–5000: A100 (80GB, 400W TDP)
   - 5001–7000: V100 (32GB, 300W TDP)
   - 7001–10000: A30 (24GB, 165W TDP)
-- Health status is deterministic: hash(gpuId) % 100 → 0–4 = critical, 5–14 = warning, 15–99 = healthy
-- Values (temperature, power, memory) are seeded from the same hash so they're consistent across calls
+- Health status is probabilistic: GPUs transition between Healthy/Warning/Critical states over time via configurable rates
+- Temperature thresholds (`GPUCoreWarning`, `GPUCoreCritical`, `MemoryWarning`, `MemoryCritical`) are populated per-model by the simulator and carried on the `Temperature` struct — the analyzer and controller read them from telemetry rather than hardcoding values
+- Simulation speed and transition probabilities are tunable at runtime via `PUT /v1/simulation/settings`
 
 ## Local Infrastructure
 
@@ -59,7 +69,7 @@ docker compose up -d
 ## Running
 
 ```bash
-# Telemetry service
+# Telemetry service (GPU health API + simulation settings)
 go run ./cmd/telemetry/
 
 # Stream all GPUs via SSE (used by the frontend)
@@ -90,13 +100,30 @@ curl -s -X POST http://localhost:8082/v1/escalations/esc-001 \
 curl http://localhost:8082/v1/escalations/esc-001
 curl http://localhost:8082/v1/escalations
 curl -X PUT http://localhost:8082/v1/escalations/esc-001/resolve
+
+# Simulation settings
+curl http://localhost:3000/v1/simulation/settings
+curl -X PUT http://localhost:3000/v1/simulation/settings \
+  -H "Content-Type: application/json" \
+  -d '{"speed_multiplier":10,"healthy_to_warning_rate":0.05,"warning_to_critical_rate":0.1,"warning_to_healthy_rate":0.05}'
+curl -X POST http://localhost:3000/v1/simulation/settings/reset
+
+# Kubernetes operator (requires kind cluster + CRDs installed)
+make install                       # install CRDs into cluster
+./bin/manager                      # run the operator
+
+# Apply a sample GPUHealth CR
+kubectl apply -f config/samples/gpu_v1alpha1_gpuhealth.yaml
+kubectl get gh -w                  # watch phase transitions
+kubectl describe gh gpuhealth-00001
 ```
 
 ## Testing
 
 ```bash
-go test ./...
-go test ./... -race                        # with race detector
+make test                                  # full suite (generates, vets, downloads envtest binaries, runs with KUBEBUILDER_ASSETS set)
+make test-race                             # race detector on non-controller packages (controller requires envtest, has no meaningful concurrency)
+
 go test ./internal/gpu/ -v                 # verbose output
 go test ./internal/diagnosis/ -v
 go test ./internal/temporal/workflows/ -v  # shows Temporal event log
@@ -119,28 +146,51 @@ npm run dev   # http://localhost:5173
 
 ## What's Done
 
-- [x] `internal/gpu` — model, simulator, specs
-- [x] `cmd/telemetry` — `GET /v1/gpus/{id}`, `GET /v1/gpus` (worker pool, 100 concurrent; content negotiation: SSE or JSON)
-- [x] `internal/diagnosis` — model, analyzer, store
+- [x] `internal/gpu` — model, simulator, specs, probabilistic state machine, runtime config
+- [x] `cmd/telemetry` — `GET /v1/gpus/{id}`, `GET /v1/gpus` (SSE + JSON); `GET|PUT /v1/simulation/settings`, `POST /v1/simulation/settings/reset`
+- [x] `internal/diagnosis` — model, analyzer (finding codes: `GPUThermalThrottle`, `MemoryThermalThrottle`, `ECCSingleBitError`, `ECCDoubleBitError`, `PowerCapped`, `LowUtilization`), store
 - [x] `cmd/diagnosis` — `POST /v1/diagnose/{gpu_id}`, `GET /v1/diagnose/{id}`, `GET /v1/diagnoses`
 - [x] `internal/escalation` — model, store
 - [x] `cmd/escalation` — `POST /v1/escalations/{id}`, `GET /v1/escalations/{id}`, `GET /v1/escalations`, `PUT /v1/escalations/{id}/resolve`
 - [x] `internal/temporal/workflows` — `MonitorGPU` workflow
 - [x] `internal/temporal/activities` — `GetHealth`, `Diagnose`, `Escalate` activities
 - [x] `cmd/worker/main.go` — Temporal worker on task queue `gpu-monitor`
-- [x] Tests — `internal/gpu` (including `AllIDs`), `internal/diagnosis`, `internal/escalation`, `internal/temporal` (activities + workflow)
+- [x] Tests — `internal/gpu`, `internal/diagnosis`, `internal/escalation`, `internal/temporal` (activities + workflow)
 - [x] CI — GitHub Actions on push/PR (build, vet, test with race detector)
-- [x] `web/` — React + TypeScript frontend (Vite) — fleet summary + 10,000-row virtualized GPU table with SSE streaming
+- [x] `web/` — React + TypeScript frontend (Vite) — fleet summary + 10,000-row virtualized GPU table with SSE streaming + simulation settings drawer
+- [x] `api/v1alpha1` — `GPUHealth` CRD (cluster-scoped, `gpu.nvidia.com/v1alpha1`)
+  - Phases: `Healthy → Warning → Critical → Draining → Recovering → Healthy` and `→ Replacing → Rejoining → Healthy` and `→ Failed`
+  - Conditions: `GPUHealthy`, `RemediationInProgress`, `EscalationRequired`
+  - Finding types: `GPUThermalThrottle`, `MemoryThermalThrottle`, `ECCSingleBitError`, `ECCDoubleBitError`, `PowerCapped`, `LowUtilization`, `XIDError`, `MemoryLeak`
+  - Finding severities: `Warning`, `Critical`
+  - `ReplacementStartedAt *metav1.Time` tracks when hardware replacement began
+  - `ReplacementTimeoutSeconds` (default 1800s, min 60s) — escalates to Failed if node doesn't cycle through NotReady within the timeout, anchored to `ReplacementStartedAt`
+  - `LastTransitionTime *metav1.Time` written on every phase change
+  - `RemediationPolicy` enum: `None`, `Drain`, `Replace`, `Escalate`; `MaxRemediationAttempts` (1–100, default 3)
+- [x] `internal/controller` — `GPUHealthReconciler` — full state machine across all phases
+  - Polls telemetry every 30s; status writes debounced via `syncStatus` (`reflect.DeepEqual` diff against a pre-mutation snapshot — no write if nothing changed)
+  - `RemediationPolicyDrain`: cordons node, evicts pods via the Eviction API (skipping DaemonSets and terminal pods; PDB-blocked evictions requeue gracefully), transitions to Recovering once drained, uncordons on recovery
+  - `RemediationPolicyReplace`: cordons node, records findings, sets `ReplacementStartedAt` when node goes NotReady, escalates to Failed if the node doesn't cycle through NotReady within `ReplacementTimeoutSeconds`, transitions to Rejoining once node returns Ready, uncordons and returns to Healthy after telemetry confirms recovery
+  - `RemediationPolicyEscalate`: sets `ConditionEscalationRequired`, pages human
+  - `RemediationPolicyNone`: observes and records findings without automated action
+  - `mergeFindings`: ring-buffer dedup capped at 100 entries — existing findings move to tail on update so high-frequency findings don't crowd out others; ECC counts use the telemetry hardware counter directly, temperature/power counts increment per observation
+  - Attempt counter resets on spec change (`observedGeneration < generation`); transitions to Failed after `maxRemediationAttempts`
+  - RBAC markers for `gpuhealths`, `pods`, `pods/eviction`, `nodes`
+  - `--telemetry-url` CLI flag (defaults to `http://localhost:3000`)
+- [x] `internal/controller` tests — envtest suite with `httptest.Server` standing in for the telemetry service
 
 ## What's Next
 
+- Add ADRs (`docs/adr/`) for CRD scope, remediationPolicy enum, two-category observability design
+- Persist diagnosis and escalation stores (PostgreSQL)
 - Add diagnoses and escalations views to the frontend
-- Persist diagnosis and escalation stores (database backend)
 - Fleet-wide scan: trigger `MonitorGPU` for all 10,000 GPUs in parallel
-- Expose workflow status via HTTP API
+- DCGM exporter / NVML event stream simulator for XID error injection
 
 ## Dependencies
 
 - `github.com/go-chi/chi/v5 v5.1.0` — HTTP router
 - `go.temporal.io/sdk v1.46.0` — Temporal workflow SDK
+- `sigs.k8s.io/controller-runtime` — Kubernetes operator framework
+- `k8s.io/api`, `k8s.io/apimachinery` — Kubernetes API types
 - `vite` + `react` + `typescript` — frontend toolchain

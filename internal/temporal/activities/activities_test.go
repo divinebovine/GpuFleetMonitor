@@ -54,10 +54,10 @@ func (s *ActivitiesTestSuite) TestDiagnoseReturnsDiagnosisAndSavesToStore() {
 		NodeID:      "NODE-0001",
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
-			GPUCoreCelsius:    75.0,
-			MemoryCelsius:     60.0,
-			WarningThreshold:  83.0,
-			CriticalThreshold: 87.0,
+			GPUCoreCelsius:           75.0,
+			MemoryCelsius:            60.0,
+			GPUCoreWarningThreshold:  83.0,
+			GPUCoreCriticalThreshold: 87.0,
 		},
 		Memory: gpu.Memory{
 			TotalBytes:  80 * 1024 * 1024 * 1024,

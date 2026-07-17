@@ -6,9 +6,11 @@ import (
 	"testing"
 )
 
+const testDiagGPUID = "GPU-00001"
+
 func TestSaveAndGet(t *testing.T) {
 	s := NewStore()
-	expected := &Diagnosis{ID: "diag-001", GPUID: "GPU-00001"}
+	expected := &Diagnosis{ID: "diag-001", GPUID: testDiagGPUID}
 	s.Save(expected)
 
 	actual, ok := s.GetByID(expected.ID)
@@ -30,12 +32,10 @@ func TestSaveThreadSafe(t *testing.T) {
 	var wg sync.WaitGroup
 
 	for i := range 100 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			d := &Diagnosis{ID: fmt.Sprintf("diag-%d", i), GPUID: fmt.Sprintf("GPU-%d", i)}
 			s.Save(d)
-		}()
+		})
 	}
 
 	wg.Wait()

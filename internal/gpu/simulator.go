@@ -36,7 +36,7 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 	}
 
 	if id > (TotalGpus) || id < 1 {
-		return nil, fmt.Errorf("Invalid GPU ID: ID must be between 1 - %d", TotalGpus)
+		return nil, fmt.Errorf("invalid GPU ID: must be between 1 and %d", TotalGpus)
 	}
 
 	nodeID := ((id - 1) / GpusPerNode) + 1
@@ -50,13 +50,13 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 	var model string
 	switch {
 	case id < 2001:
-		model = "H100"
+		model = ModelH100
 	case id < 5001:
-		model = "A100"
+		model = ModelA100
 	case id < 7001:
-		model = "V100"
+		model = ModelV100
 	case id < 10001:
-		model = "A30"
+		model = ModelA30
 	}
 
 	status, ok := DefaultStore.GetStatus(gpuID)
@@ -95,9 +95,12 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 	tMin, tMax := spec.temperature[status].Min, spec.temperature[status].Max
 	temperature.GPUCoreCelsius = tMin + (rand.Float64() * (tMax - tMin))
 	temperature.MemoryCelsius = temperature.GPUCoreCelsius - (10 + rand.Float64()*5)
-	temperature.WarningThreshold = spec.temperature[StatusWarning].Min
-	temperature.CriticalThreshold = spec.temperature[StatusCritical].Min
-	temperature.Throttling = temperature.GPUCoreCelsius >= temperature.WarningThreshold
+	temperature.GPUCoreWarningThreshold = spec.temperature[StatusWarning].Min
+	temperature.GPUCoreCriticalThreshold = spec.temperature[StatusCritical].Min
+	temperature.MemoryWarningThreshold = 85.0
+	temperature.MemoryCriticalThreshold = 95.0
+	temperature.Throttling = temperature.GPUCoreCelsius >= temperature.GPUCoreWarningThreshold ||
+		temperature.MemoryCelsius >= temperature.MemoryWarningThreshold
 
 	memory := new(Memory)
 	memory.TotalBytes = spec.memoryBytes

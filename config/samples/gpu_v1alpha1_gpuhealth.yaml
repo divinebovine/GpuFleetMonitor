@@ -1,0 +1,9 @@
+apiVersion: gpu.nvidia.com/v1alpha1
+kind: GPUHealth
+metadata:
+  name: gpuhealth-00001
+spec:
+  nodeName: <node-name>  # replace with the name of the node hosting this GPU (kubectl get nodes)
+  gpuID: GPU-00001
+  remediationPolicy: Drain
+  maxRemediationAttempts: 3

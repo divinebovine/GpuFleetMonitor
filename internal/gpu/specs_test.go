@@ -8,10 +8,10 @@ func TestSpecForModelKnownModels(t *testing.T) {
 		maxPowerWatts float64
 		memoryBytes   uint64
 	}{
-		{"H100", 700.0, 80 * GB},
-		{"A100", 400.0, 80 * GB},
-		{"V100", 300.0, 32 * GB},
-		{"A30", 165.0, 24 * GB},
+		{ModelH100, 700.0, 80 * GB},
+		{ModelA100, 400.0, 80 * GB},
+		{ModelV100, 300.0, 32 * GB},
+		{ModelA30, 165.0, 24 * GB},
 	}
 
 	for _, tc := range models {
