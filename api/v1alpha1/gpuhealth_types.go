@@ -38,6 +38,7 @@ type GPUHealthSpec struct {
 	// maxRemediationAttempts is the number of automated remediation cycles to attempt
 	// before escalating to human intervention, regardless of remediationPolicy.
 	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
 	// +kubebuilder:default=3
 	// +optional
 	MaxRemediationAttempts int32 `json:"maxRemediationAttempts,omitempty"`
@@ -52,7 +53,7 @@ const (
 	RemediationPolicyNone RemediationPolicy = "None"
 	// RemediationPolicyDrain cordons the node and drains workloads, then waits for recovery.
 	RemediationPolicyDrain RemediationPolicy = "Drain"
-	// RemediationPolicyReplace drains the node and marks the GPU for hardware replacement.
+	// RemediationPolicyReplace marks the GPU for hardware replacement.
 	RemediationPolicyReplace RemediationPolicy = "Replace"
 	// RemediationPolicyEscalate pages an operator immediately without attempting automated remediation.
 	RemediationPolicyEscalate RemediationPolicy = "Escalate"
@@ -64,11 +65,9 @@ type GPUHealthStatus struct {
 	// +optional
 	Phase GPUPhase `json:"phase,omitempty"`
 
-	// nodeNotReady tracks when a node is not ready. This value is set when a
-	// node is in the replacing phase and the node becomes NotReady=True and
-	// is reset to false when the node becomes NotReady=False
+	// replacementStartedAt is when the node went down for replacement
 	// +optional
-	NodeNotReady bool `json:"nodeNotReady,omitempty"`
+	ReplacementStartedAt *metav1.Time `json:"replacementStartedAt,omitempty"`
 
 	// conditions reflect the current state of the GPUHealth resource using
 	// standard Kubernetes condition types.
@@ -161,18 +160,19 @@ type Finding struct {
 }
 
 // FindingType identifies the category of a diagnostic observation.
-// +kubebuilder:validation:Enum=XIDError;ECCSingleBitError;ECCDoubleBitError;ThermalThrottle;MemoryLeak;PowerCapped;LowUtilization;Unknown
+// +kubebuilder:validation:Enum=XIDError;ECCSingleBitError;ECCDoubleBitError;GPUThermalThrottle;MemoryThermalThrottle;MemoryLeak;PowerCapped;LowUtilization;Unknown
 type FindingType string
 
 const (
-	FindingXIDError          FindingType = "XIDError"
-	FindingECCSingleBitError FindingType = "ECCSingleBitError"
-	FindingECCDoubleBitError FindingType = "ECCDoubleBitError"
-	FindingThermalThrottle   FindingType = "ThermalThrottle"
-	FindingMemoryLeak        FindingType = "MemoryLeak"
-	FindingPowerCapped       FindingType = "PowerCapped"
-	FindingLowUtilization    FindingType = "LowUtilization"
-	FindingUnknown           FindingType = "Unknown"
+	FindingXIDError             FindingType = "XIDError"
+	FindingECCSingleBitError    FindingType = "ECCSingleBitError"
+	FindingECCDoubleBitError    FindingType = "ECCDoubleBitError"
+	FindingGPUThermalThrottle   FindingType = "GPUThermalThrottle"
+	FindingMemoryThermalThrottle FindingType = "MemoryThermalThrottle"
+	FindingMemoryLeak           FindingType = "MemoryLeak"
+	FindingPowerCapped          FindingType = "PowerCapped"
+	FindingLowUtilization       FindingType = "LowUtilization"
+	FindingUnknown              FindingType = "Unknown"
 )
 
 const (

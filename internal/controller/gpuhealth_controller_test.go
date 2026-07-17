@@ -198,6 +198,7 @@ var _ = Describe("GPUHealth Controller", func() {
 
 	Context("when telemetry reports critical with RemediationPolicyReplace", func() {
 		It("sets phase to Replacing and records findings", func() {
+			createNode(testNodeName)
 			nn := createGPUHealth("gpu-critical-replace", baseSpec(v1alpha1.RemediationPolicyReplace))
 			server := newTelemetryServerWithHealth(gpuModel.GPUHealth{
 				GPUID:        testGPUID,

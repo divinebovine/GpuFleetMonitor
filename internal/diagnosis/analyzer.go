@@ -8,8 +8,6 @@ import (
 )
 
 const (
-	memoryTempWarning         = 85.0
-	memoryTempCritical        = 95.0
 	eccSingleBitCountWarning  = 6
 	eccDoubleBitCountCritical = 1
 	lowGpuUtilization         = 5.0 // percent
@@ -34,32 +32,32 @@ func generateFindings(health *gpu.GPUHealth) []Finding {
 
 	// check gpu core temperature
 	switch {
-	case health.Temperature.GPUCoreCelsius >= health.Temperature.CriticalThreshold:
+	case health.Temperature.GPUCoreCelsius >= health.Temperature.GPUCoreCriticalThreshold:
 		findings = append(findings, Finding{
-			Code:        "ThermalThrottle",
-			Description: fmt.Sprintf("GPU Core Temperature Critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GPUCoreCelsius, health.Temperature.CriticalThreshold),
+			Code:        "GPUThermalThrottle",
+			Description: fmt.Sprintf("GPU Core Temperature Critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GPUCoreCelsius, health.Temperature.GPUCoreCriticalThreshold),
 			Severity:    SeverityCritical,
 		})
-	case health.Temperature.GPUCoreCelsius >= health.Temperature.WarningThreshold:
+	case health.Temperature.GPUCoreCelsius >= health.Temperature.GPUCoreWarningThreshold:
 		findings = append(findings, Finding{
-			Code:        "ThermalThrottle",
-			Description: fmt.Sprintf("GPU Core Temperature Warning - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GPUCoreCelsius, health.Temperature.WarningThreshold),
+			Code:        "GPUThermalThrottle",
+			Description: fmt.Sprintf("GPU Core Temperature Warning - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.GPUCoreCelsius, health.Temperature.GPUCoreWarningThreshold),
 			Severity:    SeverityMedium,
 		})
 	}
 
 	// check memory temperature
 	switch {
-	case health.Temperature.MemoryCelsius >= memoryTempCritical:
+	case health.Temperature.MemoryCriticalThreshold > 0 && health.Temperature.MemoryCelsius >= health.Temperature.MemoryCriticalThreshold:
 		findings = append(findings, Finding{
-			Code:        "ThermalThrottle",
-			Description: fmt.Sprintf("Memory temperature critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.MemoryCelsius, memoryTempCritical),
+			Code:        "MemoryThermalThrottle",
+			Description: fmt.Sprintf("Memory temperature critical - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.MemoryCelsius, health.Temperature.MemoryCriticalThreshold),
 			Severity:    SeverityCritical,
 		})
-	case health.Temperature.MemoryCelsius >= memoryTempWarning:
+	case health.Temperature.MemoryWarningThreshold > 0 && health.Temperature.MemoryCelsius >= health.Temperature.MemoryWarningThreshold:
 		findings = append(findings, Finding{
-			Code:        "ThermalThrottle",
-			Description: fmt.Sprintf("Memory core temperature warning - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.MemoryCelsius, memoryTempWarning),
+			Code:        "MemoryThermalThrottle",
+			Description: fmt.Sprintf("Memory temperature warning - %.1f°C detected which exceeds the acceptable threshold of %.1f°C", health.Temperature.MemoryCelsius, health.Temperature.MemoryWarningThreshold),
 			Severity:    SeverityMedium,
 		})
 	}

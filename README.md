@@ -53,7 +53,7 @@ web/                    → React + TypeScript frontend (Vite, :5173)
   - 5001–7000: V100 (32GB, 300W TDP)
   - 7001–10000: A30 (24GB, 165W TDP)
 - Health status is probabilistic: GPUs transition between Healthy/Warning/Critical states over time via configurable rates
-- Values (temperature, power, memory) are seeded from the GPU ID hash so they're consistent per GPU
+- Temperature thresholds (`GPUCoreWarning`, `GPUCoreCritical`, `MemoryWarning`, `MemoryCritical`) are populated per-model by the simulator and carried on the `Temperature` struct — the analyzer and controller read them from telemetry rather than hardcoding values
 - Simulation speed and transition probabilities are tunable at runtime via `PUT /v1/simulation/settings`
 
 ## Local Infrastructure
@@ -151,7 +151,7 @@ npm run dev   # http://localhost:5173
 
 - [x] `internal/gpu` — model, simulator, specs, probabilistic state machine, runtime config
 - [x] `cmd/telemetry` — `GET /v1/gpus/{id}`, `GET /v1/gpus` (SSE + JSON); `GET|PUT /v1/simulation/settings`, `POST /v1/simulation/settings/reset`
-- [x] `internal/diagnosis` — model, analyzer (finding codes aligned with operator `FindingType`), store
+- [x] `internal/diagnosis` — model, analyzer (finding codes: `GPUThermalThrottle`, `MemoryThermalThrottle`, `ECCSingleBitError`, `ECCDoubleBitError`, `PowerCapped`, `LowUtilization`), store
 - [x] `cmd/diagnosis` — `POST /v1/diagnose/{gpu_id}`, `GET /v1/diagnose/{id}`, `GET /v1/diagnoses`
 - [x] `internal/escalation` — model, store
 - [x] `cmd/escalation` — `POST /v1/escalations/{id}`, `GET /v1/escalations/{id}`, `GET /v1/escalations`, `PUT /v1/escalations/{id}/resolve`
@@ -161,13 +161,21 @@ npm run dev   # http://localhost:5173
 - [x] Tests — `internal/gpu`, `internal/diagnosis`, `internal/escalation`, `internal/temporal` (activities + workflow)
 - [x] CI — GitHub Actions on push/PR (build, vet, test with race detector)
 - [x] `web/` — React + TypeScript frontend (Vite) — fleet summary + 10,000-row virtualized GPU table with SSE streaming + simulation settings drawer
-- [x] `api/v1alpha1` — `GPUHealth` CRD (cluster-scoped, `gpu.nvidia.com/v1alpha1`) with phases, conditions, findings, remediation policy
+- [x] `api/v1alpha1` — `GPUHealth` CRD (cluster-scoped, `gpu.nvidia.com/v1alpha1`)
+  - Phases: `Healthy → Warning → Critical → Draining → Recovering → Healthy` and `→ Replacing → Rejoining → Healthy` and `→ Failed`
+  - Conditions: `GPUHealthy`, `RemediationInProgress`, `EscalationRequired`
+  - Finding types: `GPUThermalThrottle`, `MemoryThermalThrottle`, `ECCSingleBitError`, `ECCDoubleBitError`, `PowerCapped`, `LowUtilization`, `XIDError`, `MemoryLeak`
+  - Finding severities: `Warning`, `Critical`
+  - `ReplacementStartedAt *metav1.Time` tracks when hardware replacement began
+  - `LastTransitionTime *metav1.Time` written on every phase change
+  - `RemediationPolicy` enum: `None`, `Drain`, `Replace`, `Escalate`; `MaxRemediationAttempts` (1–100, default 3)
 - [x] `internal/controller` — `GPUHealthReconciler` — full state machine across all phases
-  - Polls telemetry every 30s; debounces status writes via `SetStatusCondition`
-  - `RemediationPolicyDrain`: cordons node, waits for pod eviction, transitions to Recovering, uncordons on recovery
-  - `RemediationPolicyReplace`: cordons node, records findings, tracks `NodeNotReady` state to detect hardware swap, transitions to Rejoining once node returns Ready, uncordons and returns to Healthy after telemetry confirms recovery
+  - Polls telemetry every 30s; status writes debounced via `syncStatus` (`reflect.DeepEqual` diff against a pre-mutation snapshot — no write if nothing changed)
+  - `RemediationPolicyDrain`: cordons node, waits for pod eviction (skipping DaemonSets and terminal pods), transitions to Recovering, uncordons on recovery
+  - `RemediationPolicyReplace`: cordons node, records findings, sets `ReplacementStartedAt` when node goes NotReady, transitions to Rejoining once node returns Ready, uncordons and returns to Healthy after telemetry confirms recovery
   - `RemediationPolicyEscalate`: sets `ConditionEscalationRequired`, pages human
-  - `RemediationPolicyNone`: observes and records without automated action
+  - `RemediationPolicyNone`: observes and records findings without automated action
+  - `mergeFindings`: ring-buffer dedup capped at 100 entries — existing findings move to tail on update so high-frequency findings don't crowd out others; ECC counts use the telemetry hardware counter directly, temperature/power counts increment per observation
   - Attempt counter resets on spec change (`observedGeneration < generation`); transitions to Failed after `maxRemediationAttempts`
   - RBAC markers for `gpuhealths`, `pods`, `nodes`
   - `--telemetry-url` CLI flag (defaults to `http://localhost:3000`)

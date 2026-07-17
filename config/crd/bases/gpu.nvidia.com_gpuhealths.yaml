@@ -69,6 +69,7 @@ spec:
                   maxRemediationAttempts is the number of automated remediation cycles to attempt
                   before escalating to human intervention, regardless of remediationPolicy.
                 format: int32
+                maximum: 100
                 minimum: 1
                 type: integer
               nodeName:
@@ -189,7 +190,8 @@ spec:
                       - XIDError
                       - ECCSingleBitError
                       - ECCDoubleBitError
-                      - ThermalThrottle
+                      - GPUThermalThrottle
+                      - MemoryThermalThrottle
                       - MemoryLeak
                       - PowerCapped
                       - LowUtilization
@@ -208,12 +210,6 @@ spec:
                 description: lastTransitionTime is when the phase last changed.
                 format: date-time
                 type: string
-              nodeNotReady:
-                description: |-
-                  nodeNotReady tracks when a node is not ready. This value is set when a
-                  node is in the replacing phase and the node becomes NotReady=True and
-                  is reset to false when the node becomes NotReady=False
-                type: boolean
               observedGeneration:
                 description: |-
                   observedGeneration is the .metadata.generation that this status was computed from.
@@ -239,6 +235,10 @@ spec:
                   When this reaches spec.maxRemediationAttempts, the operator sets EscalationRequired.
                 format: int32
                 type: integer
+              replacementStartedAt:
+                description: replacementStartedAt is when the node went down for replacement
+                format: date-time
+                type: string
             type: object
         required:
         - spec
