@@ -124,7 +124,7 @@ var _ = Describe("GPUHealth Controller", func() {
 			cond := apimeta.FindStatusCondition(gh.Status.Conditions, v1alpha1.ConditionGPUHealthy)
 			Expect(cond).NotTo(BeNil())
 			Expect(cond.Status).To(Equal(metav1.ConditionTrue))
-			Expect(cond.Reason).To(Equal("GPUOperational"))
+			Expect(cond.Reason).To(Equal(reasonGPUOperational))
 		})
 	})
 
@@ -142,7 +142,7 @@ var _ = Describe("GPUHealth Controller", func() {
 			cond := apimeta.FindStatusCondition(gh.Status.Conditions, v1alpha1.ConditionGPUHealthy)
 			Expect(cond).NotTo(BeNil())
 			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
-			Expect(cond.Reason).To(Equal("GPUDegraded"))
+			Expect(cond.Reason).To(Equal(reasonGPUDegraded))
 		})
 	})
 
@@ -235,7 +235,7 @@ var _ = Describe("GPUHealth Controller", func() {
 			cond := apimeta.FindStatusCondition(gh.Status.Conditions, v1alpha1.ConditionEscalationRequired)
 			Expect(cond).NotTo(BeNil())
 			Expect(cond.Status).To(Equal(metav1.ConditionTrue))
-			Expect(cond.Reason).To(Equal("GPUFailed"))
+			Expect(cond.Reason).To(Equal(reasonGPUFailed))
 		})
 	})
 })
