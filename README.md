@@ -121,15 +121,12 @@ kubectl describe gh gpuhealth-00001
 ## Testing
 
 ```bash
-go test ./...
-go test ./... -race                        # with race detector
+make test                                  # full suite (generates, vets, downloads envtest binaries, runs with KUBEBUILDER_ASSETS set)
+make test-race                             # race detector on non-controller packages (controller requires envtest, has no meaningful concurrency)
+
 go test ./internal/gpu/ -v                 # verbose output
 go test ./internal/diagnosis/ -v
 go test ./internal/temporal/workflows/ -v  # shows Temporal event log
-
-# Controller suite requires envtest binaries
-make setup-envtest
-make test                                  # runs full suite with KUBEBUILDER_ASSETS set
 ```
 
 ## Frontend
@@ -167,17 +164,18 @@ npm run dev   # http://localhost:5173
   - Finding types: `GPUThermalThrottle`, `MemoryThermalThrottle`, `ECCSingleBitError`, `ECCDoubleBitError`, `PowerCapped`, `LowUtilization`, `XIDError`, `MemoryLeak`
   - Finding severities: `Warning`, `Critical`
   - `ReplacementStartedAt *metav1.Time` tracks when hardware replacement began
+  - `ReplacementTimeoutSeconds` (default 1800s, min 60s) — escalates to Failed if node doesn't cycle through NotReady within the timeout, anchored to `ReplacementStartedAt`
   - `LastTransitionTime *metav1.Time` written on every phase change
   - `RemediationPolicy` enum: `None`, `Drain`, `Replace`, `Escalate`; `MaxRemediationAttempts` (1–100, default 3)
 - [x] `internal/controller` — `GPUHealthReconciler` — full state machine across all phases
   - Polls telemetry every 30s; status writes debounced via `syncStatus` (`reflect.DeepEqual` diff against a pre-mutation snapshot — no write if nothing changed)
-  - `RemediationPolicyDrain`: cordons node, waits for pod eviction (skipping DaemonSets and terminal pods), transitions to Recovering, uncordons on recovery
-  - `RemediationPolicyReplace`: cordons node, records findings, sets `ReplacementStartedAt` when node goes NotReady, transitions to Rejoining once node returns Ready, uncordons and returns to Healthy after telemetry confirms recovery
+  - `RemediationPolicyDrain`: cordons node, evicts pods via the Eviction API (skipping DaemonSets and terminal pods; PDB-blocked evictions requeue gracefully), transitions to Recovering once drained, uncordons on recovery
+  - `RemediationPolicyReplace`: cordons node, records findings, sets `ReplacementStartedAt` when node goes NotReady, escalates to Failed if the node doesn't cycle through NotReady within `ReplacementTimeoutSeconds`, transitions to Rejoining once node returns Ready, uncordons and returns to Healthy after telemetry confirms recovery
   - `RemediationPolicyEscalate`: sets `ConditionEscalationRequired`, pages human
   - `RemediationPolicyNone`: observes and records findings without automated action
   - `mergeFindings`: ring-buffer dedup capped at 100 entries — existing findings move to tail on update so high-frequency findings don't crowd out others; ECC counts use the telemetry hardware counter directly, temperature/power counts increment per observation
   - Attempt counter resets on spec change (`observedGeneration < generation`); transitions to Failed after `maxRemediationAttempts`
-  - RBAC markers for `gpuhealths`, `pods`, `nodes`
+  - RBAC markers for `gpuhealths`, `pods`, `pods/eviction`, `nodes`
   - `--telemetry-url` CLI flag (defaults to `http://localhost:3000`)
 - [x] `internal/controller` tests — envtest suite with `httptest.Server` standing in for the telemetry service
 
