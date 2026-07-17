@@ -164,15 +164,15 @@ type Finding struct {
 type FindingType string
 
 const (
-	FindingXIDError             FindingType = "XIDError"
-	FindingECCSingleBitError    FindingType = "ECCSingleBitError"
-	FindingECCDoubleBitError    FindingType = "ECCDoubleBitError"
-	FindingGPUThermalThrottle   FindingType = "GPUThermalThrottle"
+	FindingXIDError              FindingType = "XIDError"
+	FindingECCSingleBitError     FindingType = "ECCSingleBitError"
+	FindingECCDoubleBitError     FindingType = "ECCDoubleBitError"
+	FindingGPUThermalThrottle    FindingType = "GPUThermalThrottle"
 	FindingMemoryThermalThrottle FindingType = "MemoryThermalThrottle"
-	FindingMemoryLeak           FindingType = "MemoryLeak"
-	FindingPowerCapped          FindingType = "PowerCapped"
-	FindingLowUtilization       FindingType = "LowUtilization"
-	FindingUnknown              FindingType = "Unknown"
+	FindingMemoryLeak            FindingType = "MemoryLeak"
+	FindingPowerCapped           FindingType = "PowerCapped"
+	FindingLowUtilization        FindingType = "LowUtilization"
+	FindingUnknown               FindingType = "Unknown"
 )
 
 const (

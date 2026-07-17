@@ -13,7 +13,7 @@ func TestAnalyzeGpuCoreTemp(t *testing.T) {
 		GPUID:       "GPU-00001",
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
-			GPUCoreCelsius:    92.0,
+			GPUCoreCelsius:           92.0,
 			GPUCoreCriticalThreshold: 84.0,
 		},
 	}
@@ -56,7 +56,7 @@ func TestAnalyzeGpuCoreTempWarning(t *testing.T) {
 		GPUID:       "GPU-00001",
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
-			GPUCoreCelsius:    80.0, // above warning (75), below critical (84)
+			GPUCoreCelsius:           80.0, // above warning (75), below critical (84)
 			GPUCoreWarningThreshold:  75.0,
 			GPUCoreCriticalThreshold: 84.0,
 		},
@@ -250,10 +250,10 @@ func TestAnalyzeNoFindings(t *testing.T) {
 		GPUID:       "GPU-00001",
 		Utilization: 50.0,
 		Temperature: gpu.Temperature{
-			GPUCoreCelsius:    60.0,
+			GPUCoreCelsius:           60.0,
 			GPUCoreWarningThreshold:  75.0,
 			GPUCoreCriticalThreshold: 84.0,
-			MemoryCelsius:     55.0,
+			MemoryCelsius:            55.0,
 		},
 		Memory: gpu.Memory{
 			ECCSingleBitErrors: 0,

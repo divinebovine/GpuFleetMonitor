@@ -11,13 +11,13 @@ const (
 )
 
 type Temperature struct {
-	GPUCoreCelsius          float64 `json:"gpu_core_celsius"`
-	MemoryCelsius           float64 `json:"memory_celsius"`
+	GPUCoreCelsius           float64 `json:"gpu_core_celsius"`
+	MemoryCelsius            float64 `json:"memory_celsius"`
 	GPUCoreWarningThreshold  float64 `json:"gpu_core_warning_threshold"`
 	GPUCoreCriticalThreshold float64 `json:"gpu_core_critical_threshold"`
-	MemoryWarningThreshold  float64 `json:"memory_warning_threshold"`
-	MemoryCriticalThreshold float64 `json:"memory_critical_threshold"`
-	Throttling              bool    `json:"throttling"`
+	MemoryWarningThreshold   float64 `json:"memory_warning_threshold"`
+	MemoryCriticalThreshold  float64 `json:"memory_critical_threshold"`
+	Throttling               bool    `json:"throttling"`
 }
 
 type Memory struct {
