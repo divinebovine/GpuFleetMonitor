@@ -17,6 +17,7 @@ import { type SimulationSettings } from "../types/gpu";
 
 const SPEED_PRESETS = [1, 5, 10, 50, 100];
 const MAX_RATE = 0.1;
+const MAX_OUTCOME_RATE = 0.5;
 
 type Props = {
   open: boolean;
@@ -157,6 +158,71 @@ export function SimulationSettingsDrawer({ open, onClose }: Props) {
                 }
                 valueLabelDisplay="auto"
                 valueLabelFormat={(v) => `${(v * 100).toFixed(2)}%`}
+              />
+            </Box>
+
+            <Divider />
+
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <Typography variant="subtitle2">
+                Critical → Warning Rate:{" "}
+                {(draft.critical_to_warning_rate * 100).toFixed(2)}%
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Per-tick probability that a thermal or power-capped critical GPU
+                steps back to warning on its own. ECC double-bit errors ignore
+                this rate entirely.
+              </Typography>
+              <Slider
+                min={0}
+                max={MAX_RATE}
+                step={0.001}
+                value={draft.critical_to_warning_rate}
+                onChange={(_, val) =>
+                  updateDraft({ critical_to_warning_rate: val as number })
+                }
+                valueLabelDisplay="auto"
+                valueLabelFormat={(v) => `${(v * 100).toFixed(2)}%`}
+              />
+            </Box>
+
+            <Divider />
+
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <Typography variant="subtitle2">Operator Action Outcomes</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Probability that a GPU lands at Warning instead of Healthy after
+                an operator-triggered action.
+              </Typography>
+              <Typography variant="caption">
+                After drain recovery:{" "}
+                {(draft.recovery_warning_rate * 100).toFixed(0)}% Warning
+              </Typography>
+              <Slider
+                min={0}
+                max={MAX_OUTCOME_RATE}
+                step={0.01}
+                value={draft.recovery_warning_rate}
+                onChange={(_, val) =>
+                  updateDraft({ recovery_warning_rate: val as number })
+                }
+                valueLabelDisplay="auto"
+                valueLabelFormat={(v) => `${(v * 100).toFixed(0)}%`}
+              />
+              <Typography variant="caption">
+                After hardware replacement:{" "}
+                {(draft.replacement_warning_rate * 100).toFixed(0)}% Warning
+              </Typography>
+              <Slider
+                min={0}
+                max={MAX_OUTCOME_RATE}
+                step={0.01}
+                value={draft.replacement_warning_rate}
+                onChange={(_, val) =>
+                  updateDraft({ replacement_warning_rate: val as number })
+                }
+                valueLabelDisplay="auto"
+                valueLabelFormat={(v) => `${(v * 100).toFixed(0)}%`}
               />
             </Box>
 

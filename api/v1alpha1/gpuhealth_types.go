@@ -44,11 +44,16 @@ type GPUHealthSpec struct {
 	MaxRemediationAttempts int32 `json:"maxRemediationAttempts,omitempty"`
 
 	// replacementTimeoutSeconds is how long to wait for a node to cycle through
-	// NotReady before assuming the replacement happened without a reboot and escalating.
+	// NotReady before transitioning to Failed.
 	// +kubebuilder:default=1800
 	// +kubebuilder:validation:Minimum=60
 	// +optional
 	ReplacementTimeoutSeconds int32 `json:"replacementTimeoutSeconds,omitempty"`
+
+	// +kubebuilder:default=300
+	// +kubebuilder:validation:Minimum=60
+	// +optional1
+	RejoiningTimeoutSeconds int32 `json:"rejoiningTimeoutSeconds,omitempty"`
 }
 
 // RemediationPolicy defines how the operator responds to a GPU entering a critical state.
@@ -90,7 +95,7 @@ type GPUHealthStatus struct {
 	Findings []Finding `json:"findings,omitempty"`
 
 	// remediationAttempts tracks how many automated remediation cycles have been attempted.
-	// When this reaches spec.maxRemediationAttempts, the operator sets EscalationRequired.
+	// When this reaches spec.maxRemediationAttempts, the operator transitions the GPU to Failed.
 	// +optional
 	RemediationAttempts int32 `json:"remediationAttempts,omitempty"`
 
@@ -118,6 +123,8 @@ type GPUHealthStatus struct {
 type GPUPhase string
 
 const (
+	// PhaseNewCR indicates the GPU CR is newly created and has not been assigned a phase yet.
+	PhaseNewCR GPUPhase = ""
 	// PhaseHealthy indicates the GPU is operating within normal parameters.
 	PhaseHealthy GPUPhase = "Healthy"
 	// PhaseWarning indicates metrics are drifting (thermal, power, single-bit ECC errors).

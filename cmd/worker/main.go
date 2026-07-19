@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/divinebovine/GpuFleetMonitor/internal/diagnosis"
 	"github.com/divinebovine/GpuFleetMonitor/internal/escalation"
@@ -12,8 +13,12 @@ import (
 )
 
 func main() {
+	hostPort := os.Getenv("TEMPORAL_ADDRESS")
+	if hostPort == "" {
+		hostPort = "localhost:7233"
+	}
 	c, err := client.Dial(client.Options{
-		HostPort: "localhost:7233",
+		HostPort: hostPort,
 	})
 
 	if err != nil {

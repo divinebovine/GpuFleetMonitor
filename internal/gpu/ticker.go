@@ -2,6 +2,7 @@ package gpu
 
 import (
 	"context"
+	"log/slog"
 	"math/rand/v2"
 	"time"
 )
@@ -29,7 +30,6 @@ func (t *Ticker) Start(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				// handle speed multiplier changes
 				cfg = Config.Get()
 				currentSpeedMultiplier := cfg.SpeedMultiplier
 				if currentSpeedMultiplier != speedMultiplier {
@@ -38,25 +38,28 @@ func (t *Ticker) Start(ctx context.Context) {
 				}
 
 				for _, id := range AllIDs() {
-					s, ok := DefaultStore.GetStatus(id)
+					status, _, ok := DefaultStore.GetState(id)
 					if !ok {
 						continue
 					}
-					statusRoll := rand.Float64()
-					switch s {
+					roll := rand.Float64()
+					switch status {
 					case StatusHealthy:
-						if statusRoll < cfg.HealthyToWarningRate {
-							DefaultStore.SetStatus(id, StatusWarning)
+						if roll < cfg.HealthyToWarningRate {
+							DegradeToWarning(id)
 						}
 					case StatusWarning:
-						if statusRoll < cfg.WarningToCriticalRate {
-							DefaultStore.SetStatus(id, StatusCritical)
-						} else if statusRoll < cfg.WarningToCriticalRate+cfg.WarningToHealthyRate {
-							DefaultStore.SetStatus(id, StatusHealthy)
+						if roll < cfg.WarningToCriticalRate {
+							WorsenToCritical(id)
+						} else if roll < cfg.WarningToCriticalRate+cfg.WarningToHealthyRate {
+							RecoverToHealthy(id)
+						}
+					case StatusCritical:
+						if roll < cfg.CriticalToWarningRate {
+							StepBackToWarning(id)
 						}
 					default:
-						// In this simulation, critical will never get
-						// better without manual intervention
+						slog.Error("unexpected GPU status in ticker", "gpu_id", id, "status", status)
 					}
 				}
 			case <-ctx.Done():
