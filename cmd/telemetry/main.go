@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -29,15 +31,21 @@ func main() {
 	r.Use(middleware.Recoverer) // Recovers from panics
 
 	// Set a timeout for the context
-	r.Use(middleware.Timeout(60 * time.Second))
 
 	r.Route("/v1", func(r chi.Router) {
+		r.Use(middleware.Timeout(60 * time.Second))
 		r.Get("/gpus/{id}", getGpuHandler)
-		r.Get("/gpus", getAllGPUsHandler)
 		r.Get("/simulation/settings", getSimulationSettingsHandler)
 		r.Put("/simulation/settings", putSimulationSettingsHandler)
 		r.Post("/simulation/settings/reset", postResetSimulationSettingsHandler)
+		r.Put("/simulation/gpus/{id}/recover", recoverGPUHandler)
+		r.Put("/simulation/gpus/{id}/replace", replaceGPUHandler)
 	})
+
+	// this route support event streaming so we do not want a timeout on this
+	r.Get("/v1/gpus", getAllGPUsHandler)
+
+	useEnvVars()
 
 	// Start simulation ticker
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -45,6 +53,85 @@ func main() {
 	gpu.DefaultTicker.Start(ctx)
 
 	log.Fatal(http.ListenAndServe(":3000", r))
+}
+
+func useEnvVars() {
+	// start with defaults
+	newConfig := gpu.Config.Get()
+
+	if v := os.Getenv("INITIAL_SPEED_MULTIPLIER"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			newConfig.SpeedMultiplier = n
+		}
+	}
+
+	if v := os.Getenv("INITIAL_H_TO_W_RATE"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
+			newConfig.HealthyToWarningRate = n
+		}
+	}
+
+	if v := os.Getenv("INITIAL_W_TO_C_RATE"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
+			newConfig.WarningToCriticalRate = n
+		}
+	}
+
+	if v := os.Getenv("INITIAL_W_TO_H_RATE"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
+			newConfig.WarningToHealthyRate = n
+		}
+	}
+
+	if v := os.Getenv("INITIAL_C_TO_W_RATE"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
+			newConfig.CriticalToWarningRate = n
+		}
+	}
+
+	if v := os.Getenv("INITIAL_RECOVERY_WARNING_RATE"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
+			newConfig.RecoveryWarningRate = n
+		}
+	}
+
+	if v := os.Getenv("INITIAL_REPLACEMENT_WARNING_RATE"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
+			newConfig.ReplacementWarningRate = n
+		}
+	}
+
+	gpu.Config.Set(newConfig)
+}
+
+func recoverGPUHandler(w http.ResponseWriter, r *http.Request) {
+	err := gpu.Recover(chi.URLParam(r, "id"))
+	if err == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if errors.Is(err, gpu.ErrGPUNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if errors.Is(err, gpu.ErrGPUUnrecoverable) {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+func replaceGPUHandler(w http.ResponseWriter, r *http.Request) {
+	err := gpu.Replace(chi.URLParam(r, "id"))
+	if err == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if errors.Is(err, gpu.ErrGPUNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
 func getGpuHandler(w http.ResponseWriter, r *http.Request) {
@@ -83,22 +170,25 @@ func eventStreamAllGPUs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 
 	ctx := r.Context()
-	results := runWorkerPool(ctx, gpu.AllIDs())
+
+	if err := streamSnapshot(ctx, w, flusher); err != nil {
+		return
+	}
+
+	ch := gpu.DefaultHub.Subscribe()
+	defer gpu.DefaultHub.Unsubscribe(ch)
+
 	for {
 		select {
-		case h, ok := <-results:
-			if !ok {
-				_, _ = fmt.Fprintf(w, "event: done\ndata: {}\n\n")
-				flusher.Flush()
-				return
-			}
-
-			data, err := json.Marshal(h)
+		case id := <-ch:
+			h, err := gpu.GetHealth(ctx, id)
 			if err != nil {
-				log.Printf("failed to marshal GPU health for %s: %v", h.GPUID, err)
 				continue
 			}
-
+			data, err := json.Marshal(h)
+			if err != nil {
+				continue
+			}
 			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 			flusher.Flush()
 		case <-ctx.Done():
@@ -107,8 +197,34 @@ func eventStreamAllGPUs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func streamSnapshot(ctx context.Context, w http.ResponseWriter, flusher http.Flusher) error {
+	results := runWorkerPool(ctx, gpu.AllIDs())
+	for {
+		select {
+		case h, ok := <-results:
+			if !ok {
+				_, _ = fmt.Fprintf(w, "event: done\ndata: {}\n\n")
+				flusher.Flush()
+				return nil
+			}
+
+			data, err := json.Marshal(h)
+			if err != nil {
+				continue
+			}
+
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
 func fetchAllGPUs(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(60)*time.Second)
+	defer cancel()
+
 	results := runWorkerPool(ctx, gpu.AllIDs())
 	var healths []*gpu.GPUHealth
 
@@ -204,6 +320,21 @@ func putSimulationSettingsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if settings.WarningToCriticalRate+settings.WarningToHealthyRate >= 1.0 {
 		http.Error(w, "warning to critical rate and warning to healthy rate must sum to less than 1.0", http.StatusBadRequest)
+		return
+	}
+
+	if settings.CriticalToWarningRate < 0 || settings.CriticalToWarningRate > 1.0 {
+		http.Error(w, "critical to warning rate must be between 0.0 and 1.0", http.StatusBadRequest)
+		return
+	}
+
+	if settings.RecoveryWarningRate < 0 || settings.RecoveryWarningRate > 1.0 {
+		http.Error(w, "recovery warning rate must be between 0.0 and 1.0", http.StatusBadRequest)
+		return
+	}
+
+	if settings.ReplacementWarningRate < 0 || settings.ReplacementWarningRate > 1.0 {
+		http.Error(w, "replacement warning rate must be between 0.0 and 1.0", http.StatusBadRequest)
 		return
 	}
 

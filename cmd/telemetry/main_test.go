@@ -53,30 +53,43 @@ func TestGetAllGPUsHandlerJSON(t *testing.T) {
 }
 
 func TestGetAllGPUsHandlerSSE(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/v1/gpus", nil)
-	req.Header.Set("Accept", "text/event-stream")
-	w := httptest.NewRecorder()
+	server := httptest.NewServer(http.HandlerFunc(getAllGPUsHandler))
+	defer server.Close()
 
-	getAllGPUsHandler(w, req)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	res := w.Result()
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", res.StatusCode)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/v1/gpus", nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if ct := res.Header.Get("Content-Type"); ct != "text/event-stream" {
+	req.Header.Set("Accept", "text/event-stream")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
 		t.Errorf("expected text/event-stream content-type, got %q", ct)
 	}
 
 	var dataCount int
 	gotDone := false
 	namedEvent := false
-	scanner := bufio.NewScanner(res.Body)
+	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "event:") {
 			namedEvent = true
 			if line == "event: done" {
 				gotDone = true
+				cancel() // disconnect: stops the live-update loop on the server side
+				break
 			}
 		} else if strings.HasPrefix(line, "data:") && !namedEvent {
 			dataCount++

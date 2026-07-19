@@ -28,12 +28,7 @@ services:
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=temporal
       - POSTGRES_SEEDS=postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 7233"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 30s
+    restart: on-failure
 
   temporal-ui:
     image: temporalio/ui:latest
@@ -51,6 +46,12 @@ services:
       context: ../..
       dockerfile: hack/demo/Dockerfile.services
     command: ["/usr/local/bin/telemetry"]
+    environment:
+      - INITIAL_SPEED_MULTIPLIER=5
+      - INITIAL_H_TO_W_RATE=0.15
+      - INITIAL_W_TO_C_RATE=0.30
+      - INITIAL_W_TO_H_RATE=0.10
+      - INITIAL_C_TO_W_RATE=0.25
     ports:
       - "3000:3000"
     healthcheck:
@@ -85,7 +86,7 @@ services:
       - TEMPORAL_ADDRESS=temporal:7233
     depends_on:
       temporal:
-        condition: service_healthy
+        condition: service_started
       telemetry:
         condition: service_healthy
     restart: on-failure
@@ -106,7 +107,7 @@ services:
     ports:
       - "6443:6443"
     healthcheck:
-      test: ["CMD", "k3s", "kubectl", "get", "--raw", "/readyz"]
+      test: ["CMD", "kubectl", "get", "--raw", "/readyz"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -197,9 +198,11 @@ services:
       k3s-server:
         condition: service_healthy
       temporal:
-        condition: service_healthy
+        condition: service_started
       operator:
         condition: service_started
+      telemetry:
+        condition: service_healthy
 
   # ── Frontend ───────────────────────────────────────────────────────────────
 

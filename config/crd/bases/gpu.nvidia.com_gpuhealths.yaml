@@ -75,6 +75,11 @@ spec:
               nodeName:
                 description: nodeName is the Kubernetes node that hosts this GPU.
                 type: string
+              rejoiningTimeoutSeconds:
+                default: 300
+                format: int32
+                minimum: 60
+                type: integer
               remediationPolicy:
                 default: None
                 description: remediationPolicy controls how the operator responds
@@ -89,7 +94,7 @@ spec:
                 default: 1800
                 description: |-
                   replacementTimeoutSeconds is how long to wait for a node to cycle through
-                  NotReady before assuming the replacement happened without a reboot and escalating.
+                  NotReady before transitioning to Failed.
                 format: int32
                 minimum: 60
                 type: integer
@@ -240,7 +245,7 @@ spec:
               remediationAttempts:
                 description: |-
                   remediationAttempts tracks how many automated remediation cycles have been attempted.
-                  When this reaches spec.maxRemediationAttempts, the operator sets EscalationRequired.
+                  When this reaches spec.maxRemediationAttempts, the operator transitions the GPU to Failed.
                 format: int32
                 type: integer
               replacementStartedAt:

@@ -10,6 +10,16 @@ const (
 	StatusCritical HealthStatus = "critical"
 )
 
+type FailureType string
+
+const (
+	FailureTypeNone      FailureType = "none"
+	FailureTypeThermal   FailureType = "thermal"
+	FailureTypePower     FailureType = "power"
+	FailureTypeECCSingle FailureType = "ecc_single"
+	FailureTypeECCDouble FailureType = "ecc_double"
+)
+
 const (
 	ModelH100 = "H100"
 	ModelA100 = "A100"
@@ -49,6 +59,7 @@ type GPUHealth struct {
 	Slot         uint16       `json:"slot"`
 	Model        string       `json:"model"`
 	HealthStatus HealthStatus `json:"status"`
+	FailureType  FailureType  `json:"failure_type"`
 	Timestamp    time.Time    `json:"timestamp"`
 	Utilization  float64      `json:"utilization"`
 	Temperature  Temperature  `json:"temperature"`

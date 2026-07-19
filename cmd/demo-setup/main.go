@@ -3,14 +3,16 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,19 +39,25 @@ type gpuDef struct {
 //   - gpu-node-1: Drain policy — operator cordons + evicts on Critical
 //   - gpu-node-2: Escalate policy — operator sets EscalationRequired condition
 //   - gpu-node-3: None policy — observes and records findings only
+const (
+	demoNode1 = "gpu-node-1"
+	demoNode2 = "gpu-node-2"
+	demoNode3 = "gpu-node-3"
+)
+
 var demoGPUs = []gpuDef{
-	{"gpu-drain-1", "gpu-node-1", "GPU-00001", v1alpha1.RemediationPolicyDrain},
-	{"gpu-drain-2", "gpu-node-1", "GPU-00002", v1alpha1.RemediationPolicyDrain},
-	{"gpu-drain-3", "gpu-node-1", "GPU-00003", v1alpha1.RemediationPolicyDrain},
-	{"gpu-drain-4", "gpu-node-1", "GPU-00004", v1alpha1.RemediationPolicyDrain},
-	{"gpu-escalate-1", "gpu-node-2", "GPU-00005", v1alpha1.RemediationPolicyEscalate},
-	{"gpu-escalate-2", "gpu-node-2", "GPU-00006", v1alpha1.RemediationPolicyEscalate},
-	{"gpu-escalate-3", "gpu-node-2", "GPU-00007", v1alpha1.RemediationPolicyEscalate},
-	{"gpu-escalate-4", "gpu-node-2", "GPU-00008", v1alpha1.RemediationPolicyEscalate},
-	{"gpu-observe-1", "gpu-node-3", "GPU-00009", v1alpha1.RemediationPolicyNone},
-	{"gpu-observe-2", "gpu-node-3", "GPU-00010", v1alpha1.RemediationPolicyNone},
-	{"gpu-observe-3", "gpu-node-3", "GPU-00011", v1alpha1.RemediationPolicyNone},
-	{"gpu-observe-4", "gpu-node-3", "GPU-00012", v1alpha1.RemediationPolicyNone},
+	{"gpu-drain-1", demoNode1, "GPU-00001", v1alpha1.RemediationPolicyDrain},
+	{"gpu-drain-2", demoNode1, "GPU-00002", v1alpha1.RemediationPolicyDrain},
+	{"gpu-drain-3", demoNode1, "GPU-00003", v1alpha1.RemediationPolicyDrain},
+	{"gpu-drain-4", demoNode1, "GPU-00004", v1alpha1.RemediationPolicyDrain},
+	{"gpu-escalate-1", demoNode2, "GPU-00005", v1alpha1.RemediationPolicyEscalate},
+	{"gpu-escalate-2", demoNode2, "GPU-00006", v1alpha1.RemediationPolicyEscalate},
+	{"gpu-escalate-3", demoNode2, "GPU-00007", v1alpha1.RemediationPolicyEscalate},
+	{"gpu-escalate-4", demoNode2, "GPU-00008", v1alpha1.RemediationPolicyEscalate},
+	{"gpu-observe-1", demoNode3, "GPU-00009", v1alpha1.RemediationPolicyNone},
+	{"gpu-observe-2", demoNode3, "GPU-00010", v1alpha1.RemediationPolicyNone},
+	{"gpu-observe-3", demoNode3, "GPU-00011", v1alpha1.RemediationPolicyNone},
+	{"gpu-observe-4", demoNode3, "GPU-00012", v1alpha1.RemediationPolicyNone},
 }
 
 func main() {
@@ -66,6 +74,10 @@ func main() {
 	temporalAddr := os.Getenv("TEMPORAL_ADDRESS")
 	if temporalAddr == "" {
 		temporalAddr = "temporal:7233"
+	}
+	telemetryURL := os.Getenv("TELEMETRY_URL")
+	if telemetryURL == "" {
+		telemetryURL = "http://telemetry:3000"
 	}
 
 	log.Println("Waiting for k3s API server...")
@@ -90,6 +102,11 @@ func main() {
 		log.Printf("warning: Temporal workflows not started: %v", err)
 	}
 
+	log.Println("Tuning simulator for demo...")
+	if err := tuneSimulator(telemetryURL); err != nil {
+		log.Printf("warning: simulator not tuned: %v", err)
+	}
+
 	log.Println("Demo setup complete.")
 }
 
@@ -103,7 +120,7 @@ func patchKubeconfig(path, k3sServer string) ([]byte, error) {
 	return bytes.Replace(data, []byte("127.0.0.1:6443"), []byte(k3sServer), 1), nil
 }
 
-func waitForK3s(ctx context.Context, kubeconfigPath, k3sServer string) *k8srest.Config {
+func waitForK3s(_ context.Context, kubeconfigPath, k3sServer string) *k8srest.Config {
 	for {
 		data, err := patchKubeconfig(kubeconfigPath, k3sServer)
 		if err != nil {
@@ -211,6 +228,32 @@ func createCRs(ctx context.Context, k8sClient crClient.Client) error {
 		}
 		log.Printf("created %s (%s → %s)", def.name, def.gpuID, def.policy)
 	}
+	return nil
+}
+
+func tuneSimulator(telemetryURL string) error {
+	settings := map[string]any{
+		"speed_multiplier":         5,
+		"healthy_to_warning_rate":  0.10,
+		"warning_to_critical_rate": 0.25,
+		"warning_to_healthy_rate":  0.05,
+		"critical_to_warning_rate": 0.20,
+	}
+	body, _ := json.Marshal(settings)
+	req, err := http.NewRequest(http.MethodPut, telemetryURL+"/v1/simulation/settings", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+	log.Printf("simulator tuned: speed×5, H→W=10%%, W→C=25%%, W→H=5%%, C→W=20%%")
 	return nil
 }
 
