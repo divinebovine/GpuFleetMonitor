@@ -113,44 +113,15 @@ services:
       retries: 20
       start_period: 30s
 
-  k3s-agent-1:
+  k3s-agent:
     image: rancher/k3s:v1.31.5-k3s1
     command: agent
     privileged: true
-    hostname: gpu-node-1
     environment:
       - K3S_URL=https://k3s-server:6443
       - K3S_TOKEN=nvidia-demo-secret
     volumes:
-      - k3s-agent-1-data:/var/lib/rancher/k3s
-    depends_on:
-      k3s-server:
-        condition: service_healthy
-
-  k3s-agent-2:
-    image: rancher/k3s:v1.31.5-k3s1
-    command: agent
-    privileged: true
-    hostname: gpu-node-2
-    environment:
-      - K3S_URL=https://k3s-server:6443
-      - K3S_TOKEN=nvidia-demo-secret
-    volumes:
-      - k3s-agent-2-data:/var/lib/rancher/k3s
-    depends_on:
-      k3s-server:
-        condition: service_healthy
-
-  k3s-agent-3:
-    image: rancher/k3s:v1.31.5-k3s1
-    command: agent
-    privileged: true
-    hostname: gpu-node-3
-    environment:
-      - K3S_URL=https://k3s-server:6443
-      - K3S_TOKEN=nvidia-demo-secret
-    volumes:
-      - k3s-agent-3-data:/var/lib/rancher/k3s
+      - /var/lib/rancher/k3s
     depends_on:
       k3s-server:
         condition: service_healthy
@@ -216,6 +187,3 @@ services:
 volumes:
   kubeconfig:
   k3s-server-data:
-  k3s-agent-1-data:
-  k3s-agent-2-data:
-  k3s-agent-3-data:
