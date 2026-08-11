@@ -52,7 +52,7 @@ type GPUHealthSpec struct {
 
 	// +kubebuilder:default=300
 	// +kubebuilder:validation:Minimum=60
-	// +optional1
+	// +optional
 	RejoiningTimeoutSeconds int32 `json:"rejoiningTimeoutSeconds,omitempty"`
 }
 

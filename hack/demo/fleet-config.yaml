@@ -1,0 +1,13 @@
+nodeGroups:
+  - model: H100
+    gpuCount: 8
+    nodeCount: 1
+  - model: A100
+    gpuCount: 8
+    nodeCount: 2
+  - model: V100
+    gpuCount: 8
+    nodeCount: 3
+  - model: A30
+    gpuCount: 8
+    nodeCount: 2
