@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,15 +16,18 @@ import (
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	k8srest "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	crClient "sigs.k8s.io/controller-runtime/pkg/client"
 	schemeyaml "sigs.k8s.io/yaml"
 
 	"github.com/divinebovine/GpuFleetMonitor/api/v1alpha1"
+	"github.com/divinebovine/GpuFleetMonitor/internal/fleet"
 	"github.com/divinebovine/GpuFleetMonitor/internal/temporal/workflows"
 	temporalclient "go.temporal.io/sdk/client"
 )
@@ -44,6 +48,8 @@ const (
 	demoNode2 = "gpu-node-2"
 	demoNode3 = "gpu-node-3"
 )
+
+const labelControlPlane = "node-role.kubernetes.io/control-plane"
 
 var demoGPUs = []gpuDef{
 	{"gpu-drain-1", demoNode1, "GPU-00001", v1alpha1.RemediationPolicyDrain},
@@ -80,6 +86,11 @@ func main() {
 		telemetryURL = "http://telemetry:3000"
 	}
 
+	fleetconfigPath := os.Getenv("FLEETCONFIG")
+	if fleetconfigPath == "" {
+		fleetconfigPath = "/etc/demo/fleet-config.yaml"
+	}
+
 	log.Println("Waiting for k3s API server...")
 	restCfg := waitForK3s(ctx, kubeconfigPath, k3sServer)
 
@@ -88,8 +99,24 @@ func main() {
 		log.Fatalf("installing CRD: %v", err)
 	}
 
+	log.Println("Loading fleet config...")
+	fleetCfg, err := fleet.LoadConfig(fleetconfigPath)
+	if err != nil {
+		log.Fatalf("loading fleet config: %v", err)
+	}
+
 	log.Println("Waiting for worker nodes...")
-	k8sClient := waitForNodes(ctx, restCfg, 3)
+	nodeCount := 0
+	for _, ng := range fleetCfg.NodeGroups {
+		nodeCount += ng.NodeCount
+	}
+	//fleetCfg.NodeGroups
+	k8sClient := waitForNodes(ctx, restCfg, nodeCount)
+
+	log.Println("Labeling worker nodes...")
+	if err = labelNodes(ctx, k8sClient, fleetCfg); err != nil {
+		log.Fatalf("labeling worker nodes: %v", err)
+	}
 
 	log.Println("Creating GPUHealth CRs...")
 	if err := createCRs(ctx, k8sClient); err != nil {
@@ -178,22 +205,34 @@ func buildK8sClient(cfg *k8srest.Config) (crClient.Client, error) {
 	return crClient.New(cfg, crClient.Options{Scheme: scheme})
 }
 
+func listWorkerNodes(ctx context.Context, k8sClient crClient.Client) ([]corev1.Node, error) {
+	selector, err := labels.Parse("!" + labelControlPlane)
+	if err != nil {
+		log.Fatalf("list worker nodes: %v", err)
+		return nil, err
+	}
+
+	var nodeList corev1.NodeList
+	if err := k8sClient.List(ctx, &nodeList, crClient.MatchingLabelsSelector{Selector: selector}); err != nil {
+		return nil, err
+	}
+
+	return nodeList.Items, nil
+}
+
 func waitForNodes(ctx context.Context, cfg *k8srest.Config, required int) crClient.Client {
 	k8sClient, err := buildK8sClient(cfg)
 	if err != nil {
 		log.Fatalf("building k8s client: %v", err)
 	}
 	for {
-		var nodeList corev1.NodeList
-		if err := k8sClient.List(ctx, &nodeList); err != nil {
+		nodes, err := listWorkerNodes(ctx, k8sClient)
+		if err != nil {
 			time.Sleep(3 * time.Second)
 			continue
 		}
 		ready := 0
-		for _, n := range nodeList.Items {
-			if _, isCP := n.Labels["node-role.kubernetes.io/control-plane"]; isCP {
-				continue
-			}
+		for _, n := range nodes {
 			for _, c := range n.Status.Conditions {
 				if c.Type == corev1.NodeReady && c.Status == corev1.ConditionTrue {
 					ready++
@@ -207,6 +246,36 @@ func waitForNodes(ctx context.Context, cfg *k8srest.Config, required int) crClie
 		log.Printf("waiting for %d worker nodes (%d ready)...", required, ready)
 		time.Sleep(3 * time.Second)
 	}
+}
+
+func labelNodes(ctx context.Context, k8sClient crClient.Client, cfg *fleet.Config) error {
+	var nodes []corev1.Node
+	var err error
+	nodes, err = listWorkerNodes(ctx, k8sClient)
+	if err != nil {
+		log.Fatalf("labeling nodes: %v", err)
+	}
+
+	nodeNames := make([]string, 0)
+	for _, n := range nodes {
+		nodeNames = append(nodeNames, n.Name)
+	}
+
+	assignments, err := fleet.AssignGroups(nodeNames, cfg.NodeGroups)
+	if err != nil {
+		log.Fatalf("labeling nodes: %v", err)
+		return err
+	}
+
+	for i, n := range nodes {
+		original := n.DeepCopy()
+		n.Labels[fleet.LabelModel] = assignments[i].Model
+		n.Labels[fleet.LabelCount] = strconv.Itoa(assignments[i].GPUCount)
+		if err = k8sClient.Patch(ctx, &n, client.MergeFrom(original)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func createCRs(ctx context.Context, k8sClient crClient.Client) error {

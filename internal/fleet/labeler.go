@@ -3,7 +3,7 @@ package fleet
 import "errors"
 
 const (
-	labelModel = "gpu.fleet/model"
+	LabelModel = "gpu.fleet/model"
 	LabelCount = "gpu.fleet/count"
 )
 

@@ -165,6 +165,7 @@ services:
       - TEMPORAL_ADDRESS=temporal:7233
     volumes:
       - kubeconfig:/kubeconfig:ro
+      - ./fleet-config.yaml:/etc/demo/fleet-config.yaml:ro
     depends_on:
       k3s-server:
         condition: service_healthy
@@ -186,4 +187,5 @@ services:
 
 volumes:
   kubeconfig:
+  fleet-config.yaml:
   k3s-server-data:
