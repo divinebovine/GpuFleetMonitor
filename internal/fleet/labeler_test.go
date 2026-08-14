@@ -12,6 +12,15 @@ func assignmentsAreEqual(a, b []Assignment) bool {
 	})
 }
 
+const (
+	h100 = "H100"
+	a100 = "A100"
+	a30  = "A30"
+	v100 = "V100"
+)
+
+var nodes = []string{"node001", "node002", "node003", "node004", "node005"}
+
 func TestLabeler(t *testing.T) {
 	cases := []struct {
 		nodenames          []string
@@ -24,53 +33,53 @@ func TestLabeler(t *testing.T) {
 			[]Assignment{},
 		},
 		{
-			[]string{"node001", "node002", "node003", "node004", "node005"},
+			nodes,
 			[]NodeGroup{
 				{
-					Model:     "H100",
+					Model:     h100,
 					GPUCount:  8,
 					NodeCount: 2,
 				},
 				{
-					Model:     "A100",
+					Model:     a100,
 					GPUCount:  8,
 					NodeCount: 1,
 				},
 				{
-					Model:     "A30",
+					Model:     a30,
 					GPUCount:  8,
 					NodeCount: 1,
 				},
 				{
-					Model:     "V100",
+					Model:     v100,
 					GPUCount:  4,
 					NodeCount: 1,
 				},
 			},
 			[]Assignment{
 				{
-					NodeName: "node001",
-					Model:    "H100",
+					NodeName: nodes[0],
+					Model:    h100,
 					GPUCount: 8,
 				},
 				{
-					NodeName: "node002",
-					Model:    "H100",
+					NodeName: nodes[1],
+					Model:    h100,
 					GPUCount: 8,
 				},
 				{
-					NodeName: "node003",
-					Model:    "A100",
+					NodeName: nodes[2],
+					Model:    a100,
 					GPUCount: 8,
 				},
 				{
-					NodeName: "node004",
-					Model:    "A30",
+					NodeName: nodes[6],
+					Model:    a30,
 					GPUCount: 8,
 				},
 				{
-					NodeName: "node005",
-					Model:    "V100",
+					NodeName: nodes[7],
+					Model:    v100,
 					GPUCount: 4,
 				},
 			},
@@ -96,10 +105,10 @@ func TestLablerErrors(t *testing.T) {
 		expectedError error
 	}{
 		{
-			[]string{"node001", "node002", "node003", "node004", "node005"},
+			nodes,
 			[]NodeGroup{
 				{
-					Model:     "A30",
+					Model:     a30,
 					GPUCount:  8,
 					NodeCount: 8,
 				},
@@ -107,15 +116,10 @@ func TestLablerErrors(t *testing.T) {
 			ErrTooManyNodes,
 		},
 		{
-			[]string{"node001", "node002", "node003"},
+			nodes,
 			[]NodeGroup{
 				{
-					Model:     "A30",
-					GPUCount:  8,
-					NodeCount: 1,
-				},
-				{
-					Model:     "H100",
+					Model:     a30,
 					GPUCount:  8,
 					NodeCount: 1,
 				},

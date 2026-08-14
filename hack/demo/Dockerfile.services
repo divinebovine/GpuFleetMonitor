@@ -12,6 +12,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /out/demo-setup ./cmd/demo-setup/
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /out/ /usr/local/bin/
 COPY config/crd/bases/gpu.nvidia.com_gpuhealths.yaml /etc/demo/crd.yaml

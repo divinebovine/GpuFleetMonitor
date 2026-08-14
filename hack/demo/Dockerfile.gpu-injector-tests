@@ -1,20 +1,16 @@
-FROM nvidia/dcgm:4.5.2-1-ubuntu22.04 AS base
+FROM nvidia/dcgm:4.5.2-1-ubuntu22.04
 WORKDIR /workspace
 RUN rm -rf /usr/local/go && \
   apt-get update && apt-get install -y --no-install-recommends ca-certificates curl build-essential && \
   rm -rf /var/lib/apt/lists/* && \
-  curl -O https://go.dev/dl/go1.26.6.linux-amd64.tar.gz && \
+  curl -LO https://go.dev/dl/go1.26.6.linux-amd64.tar.gz && \
   tar -C /usr/local -xzf go1.26.6.linux-amd64.tar.gz && \
   rm go1.26.6.linux-amd64.tar.gz
 
 ENV PATH="${PATH}:/usr/local/go/bin"
 
-FROM base AS builder
 COPY go.mod go.sum ./
 RUN go mod download
-COPY ./cmd/gpu-injector .
-RUN CGO_ENABLED=1 GOOS=linux go build -o /out/gpu-injector ./
+COPY ./internal/injector ./internal/injector
 
-FROM base
-COPY --from=builder /out/ /usr/local/bin
-ENTRYPOINT [ "gpu-injector" ]
+ENTRYPOINT [ "go", "test", "-tags=integration", "-v", "./internal/injector/..." ]

@@ -23,7 +23,6 @@ import (
 	k8srest "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	crClient "sigs.k8s.io/controller-runtime/pkg/client"
 	schemeyaml "sigs.k8s.io/yaml"
 
 	"github.com/divinebovine/GpuFleetMonitor/api/v1alpha1"
@@ -110,7 +109,7 @@ func main() {
 	for _, ng := range fleetCfg.NodeGroups {
 		nodeCount += ng.NodeCount
 	}
-	//fleetCfg.NodeGroups
+
 	k8sClient := waitForNodes(ctx, restCfg, nodeCount)
 
 	log.Println("Labeling worker nodes...")
@@ -194,7 +193,7 @@ func installCRD(ctx context.Context, cfg *k8srest.Config) error {
 	return err
 }
 
-func buildK8sClient(cfg *k8srest.Config) (crClient.Client, error) {
+func buildK8sClient(cfg *k8srest.Config) (client.Client, error) {
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		return nil, err
@@ -202,10 +201,10 @@ func buildK8sClient(cfg *k8srest.Config) (crClient.Client, error) {
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
-	return crClient.New(cfg, crClient.Options{Scheme: scheme})
+	return client.New(cfg, client.Options{Scheme: scheme})
 }
 
-func listWorkerNodes(ctx context.Context, k8sClient crClient.Client) ([]corev1.Node, error) {
+func listWorkerNodes(ctx context.Context, k8sClient client.Client) ([]corev1.Node, error) {
 	selector, err := labels.Parse("!" + labelControlPlane)
 	if err != nil {
 		log.Fatalf("list worker nodes: %v", err)
@@ -213,14 +212,14 @@ func listWorkerNodes(ctx context.Context, k8sClient crClient.Client) ([]corev1.N
 	}
 
 	var nodeList corev1.NodeList
-	if err := k8sClient.List(ctx, &nodeList, crClient.MatchingLabelsSelector{Selector: selector}); err != nil {
+	if err := k8sClient.List(ctx, &nodeList, client.MatchingLabelsSelector{Selector: selector}); err != nil {
 		return nil, err
 	}
 
 	return nodeList.Items, nil
 }
 
-func waitForNodes(ctx context.Context, cfg *k8srest.Config, required int) crClient.Client {
+func waitForNodes(ctx context.Context, cfg *k8srest.Config, required int) client.Client {
 	k8sClient, err := buildK8sClient(cfg)
 	if err != nil {
 		log.Fatalf("building k8s client: %v", err)
@@ -248,7 +247,7 @@ func waitForNodes(ctx context.Context, cfg *k8srest.Config, required int) crClie
 	}
 }
 
-func labelNodes(ctx context.Context, k8sClient crClient.Client, cfg *fleet.Config) error {
+func labelNodes(ctx context.Context, k8sClient client.Client, cfg *fleet.Config) error {
 	var nodes []corev1.Node
 	var err error
 	nodes, err = listWorkerNodes(ctx, k8sClient)
@@ -256,7 +255,7 @@ func labelNodes(ctx context.Context, k8sClient crClient.Client, cfg *fleet.Confi
 		log.Fatalf("labeling nodes: %v", err)
 	}
 
-	nodeNames := make([]string, 0)
+	nodeNames := make([]string, 0, len(nodes))
 	for _, n := range nodes {
 		nodeNames = append(nodeNames, n.Name)
 	}
@@ -278,7 +277,7 @@ func labelNodes(ctx context.Context, k8sClient crClient.Client, cfg *fleet.Confi
 	return nil
 }
 
-func createCRs(ctx context.Context, k8sClient crClient.Client) error {
+func createCRs(ctx context.Context, k8sClient client.Client) error {
 	for _, def := range demoGPUs {
 		cr := &v1alpha1.GPUHealth{
 			ObjectMeta: metav1.ObjectMeta{Name: def.name},

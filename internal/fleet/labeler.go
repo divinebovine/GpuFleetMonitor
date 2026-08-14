@@ -8,8 +8,8 @@ const (
 )
 
 var (
-	ErrTooFewNodes  = errors.New("Too few nodes")
-	ErrTooManyNodes = errors.New("Too many nodes")
+	ErrTooFewNodes  = errors.New("too few nodes")
+	ErrTooManyNodes = errors.New("too many nodes")
 )
 
 type Assignment struct {
