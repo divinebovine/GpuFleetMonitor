@@ -3,11 +3,11 @@ name: Integration Tests
 on:
   push:
     paths:
-    - 'internal/injector/**'
+    - 'internal/**'
     - 'hack/demo/Dockerfile.gpu-injector*'
   pull_request:
     paths:
-    - 'internal/injector/**'
+    - 'internal/**'
     - 'hack/demo/Dockerfile.gpu-injector*'
 
 jobs:
