@@ -11,6 +11,6 @@ ENV PATH="${PATH}:/usr/local/go/bin"
 
 COPY go.mod go.sum ./
 RUN go mod download
-COPY ./internal/injector ./internal/injector
+COPY ./internal/ ./internal/
 
 ENTRYPOINT [ "go", "test", "-tags=integration", "-v", "./internal/injector/..." ]
