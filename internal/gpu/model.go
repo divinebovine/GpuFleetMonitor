@@ -13,12 +13,17 @@ const (
 type FailureType string
 
 const (
-	FailureTypeNone      FailureType = "none"
-	FailureTypeThermal   FailureType = "thermal"
-	FailureTypePower     FailureType = "power"
-	FailureTypeECCSingle FailureType = "ecc_single"
-	FailureTypeECCDouble FailureType = "ecc_double"
+	FailureTypeNone             FailureType = "none"
+	FailureTypeThermal          FailureType = "thermal"
+	FailureTypePower            FailureType = "power"
+	FailureTypeECCSingle        FailureType = "ecc_single"
+	FailureTypeECCDouble        FailureType = "ecc_double"
+	FailureTypeGpuFellOffTheBus FailureType = "gpu_fell_off_the_bus"
 )
+
+var TransientFailures = []FailureType{FailureTypeThermal, FailureTypePower}
+var PersistentFailures = []FailureType{FailureTypeECCSingle}
+var HardwareFailures = []FailureType{FailureTypeECCDouble, FailureTypeGpuFellOffTheBus}
 
 const (
 	ModelH100 = "H100"
