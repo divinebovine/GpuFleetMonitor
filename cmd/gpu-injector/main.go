@@ -23,13 +23,3 @@ func main() {
 	}
 	fmt.Printf("Discovered %d supported devices.\n", len(devices))
 }
-
-/*
-  Step 5 — build and run against a fresh spike hostengine to confirm it actually
-  links/runs in-container, not just on your host:
-  docker run -d --name dcgm-spike nvidia/dcgm:4.5.2-1-ubuntu22.04 -n -b 0.0.0.0
-  --log-level INFO -f -
-  docker build -f hack/demo/Dockerfile.gpu-injector -t gpu-injector:spike .
-  docker run --rm --network container:dcgm-spike gpu-injector:spike
-  docker rm -f dcgm-spike
-*/
