@@ -7,13 +7,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
+var modelByEntity = map[uint]string{
+	0: "H100",
+	1: "A100",
+	2: "V100",
+	3: "A30",
+}
+
 func TestRecord(t *testing.T) {
-	modelByEntity := map[uint]string{
-		0: "H100",
-		1: "A100",
-		2: "V100",
-		3: "A30",
-	}
 	recorder := NewMetricsRecorder(modelByEntity)
 	recorder.Record(0, 155, 700) // DCGM_FI_DEV_BOARD_POWER_WATTS 155
 	recorder.Record(1, 150, 67)  // DCGM_FI_DEV_GPU_TEMP 150
@@ -63,9 +64,6 @@ DCGM_FI_DEV_ECC_DBE_VOL_TOTAL{gpu="0",modelName="H100"} 99
 }
 
 func TestRecordReflectsCurrentValueAcrossRepeats(t *testing.T) {
-	modelByEntity := map[uint]string{
-		0: "H100",
-	}
 	recorder := NewMetricsRecorder(modelByEntity)
 	recorder.Record(0, 310, 42)
 
@@ -90,9 +88,6 @@ DCGM_FI_DEV_ECC_SBE_VOL_TOTAL{gpu="0",modelName="H100"} 42
 }
 
 func TestRecordReflectsDecreasedValueDirectly(t *testing.T) {
-	modelByEntity := map[uint]string{
-		0: "H100",
-	}
 	recorder := NewMetricsRecorder(modelByEntity)
 	recorder.Record(0, 310, 42)
 

@@ -8,13 +8,18 @@ type metricConfig struct {
 	valueType prometheus.ValueType
 }
 
+const (
+	labelGPU       = "gpu"
+	labelModelName = "modelName"
+)
+
 var metricsConfig = []metricConfig{
 	{
 		140,
 		prometheus.V2.NewDesc(
 			"DCGM_FI_DEV_MEMORY_TEMP_CELSIUS",
 			"Current memory temperature",
-			prometheus.UnconstrainedLabels([]string{"gpu", "modelName"}),
+			prometheus.UnconstrainedLabels([]string{labelGPU, labelModelName}),
 			nil,
 			prometheus.WithUnit("celsius")),
 		prometheus.GaugeValue,
@@ -24,7 +29,7 @@ var metricsConfig = []metricConfig{
 		prometheus.V2.NewDesc(
 			"DCGM_FI_DEV_GPU_TEMP",
 			"Current GPU temperature",
-			prometheus.UnconstrainedLabels([]string{"gpu", "modelName"}),
+			prometheus.UnconstrainedLabels([]string{labelGPU, labelModelName}),
 			nil,
 			prometheus.WithUnit("celsius")),
 		prometheus.GaugeValue,
@@ -34,7 +39,7 @@ var metricsConfig = []metricConfig{
 		prometheus.V2.NewDesc(
 			"DCGM_FI_DEV_BOARD_POWER_WATTS",
 			"Current power usage in watts",
-			prometheus.UnconstrainedLabels([]string{"gpu", "modelName"}),
+			prometheus.UnconstrainedLabels([]string{labelGPU, labelModelName}),
 			nil,
 			prometheus.WithUnit("watts")),
 		prometheus.GaugeValue,
@@ -44,7 +49,7 @@ var metricsConfig = []metricConfig{
 		prometheus.V2.NewDesc(
 			"DCGM_FI_DEV_ECC_SBE_VOL_TOTAL",
 			"Total single bit volatile ECC errors",
-			prometheus.UnconstrainedLabels([]string{"gpu", "modelName"}),
+			prometheus.UnconstrainedLabels([]string{labelGPU, labelModelName}),
 			nil),
 		prometheus.CounterValue,
 	},
@@ -53,7 +58,7 @@ var metricsConfig = []metricConfig{
 		prometheus.V2.NewDesc(
 			"DCGM_FI_DEV_ECC_DBE_VOL_TOTAL",
 			"Total double bit volatile ECC errors",
-			prometheus.UnconstrainedLabels([]string{"gpu", "modelName"}),
+			prometheus.UnconstrainedLabels([]string{labelGPU, labelModelName}),
 			nil),
 		prometheus.CounterValue,
 	},
