@@ -46,27 +46,28 @@ func TestAdvanceStateChanges(t *testing.T) {
 			states: []GPUState{
 				createGPUState(gpu.StatusHealthy, gpu.FailureTypeNone),
 				createGPUState(gpu.StatusWarning, gpu.FailureTypePower),
-				createGPUState(gpu.StatusCritical, gpu.FailureTypeThermal),
+				createGPUState(gpu.StatusCritical, gpu.FailureTypeGPUThermal),
 			},
 			cfg:                   createCfg(0, 0, 0, 0, 0),
 			expectedHealthyCount:  1,
 			expectedWarningCount:  1,
 			expectedCriticalCount: 1,
-			expectedFailureTypes:  []gpu.FailureType{gpu.FailureTypePower, gpu.FailureTypeThermal},
+			expectedFailureTypes:  []gpu.FailureType{gpu.FailureTypePower, gpu.FailureTypeGPUThermal},
 		},
 		{
 			// test healthy to warning and warning to critical
 			states: []GPUState{
 				createGPUState(gpu.StatusHealthy, gpu.FailureTypeNone),
 				createGPUState(gpu.StatusWarning, gpu.FailureTypePower),
-				createGPUState(gpu.StatusCritical, gpu.FailureTypeThermal),
+				createGPUState(gpu.StatusCritical, gpu.FailureTypeGPUThermal),
 			},
 			cfg:                   createCfg(1.0, 1.0, 0, 0, 0),
 			expectedHealthyCount:  0,
 			expectedWarningCount:  1,
 			expectedCriticalCount: 2,
 			expectedFailureTypes: []gpu.FailureType{
-				gpu.FailureTypeThermal,
+				gpu.FailureTypeMemoryThermal,
+				gpu.FailureTypeGPUThermal,
 				gpu.FailureTypePower,
 				gpu.FailureTypeECCSingle,
 			},
@@ -76,13 +77,13 @@ func TestAdvanceStateChanges(t *testing.T) {
 			states: []GPUState{
 				createGPUState(gpu.StatusHealthy, gpu.FailureTypeNone),
 				createGPUState(gpu.StatusWarning, gpu.FailureTypePower),
-				createGPUState(gpu.StatusCritical, gpu.FailureTypeThermal),
+				createGPUState(gpu.StatusCritical, gpu.FailureTypeGPUThermal),
 			},
 			cfg:                   createCfg(0, 0, 1.0, 0, 0),
 			expectedHealthyCount:  2,
 			expectedWarningCount:  0,
 			expectedCriticalCount: 1,
-			expectedFailureTypes:  []gpu.FailureType{gpu.FailureTypePower, gpu.FailureTypeThermal},
+			expectedFailureTypes:  []gpu.FailureType{gpu.FailureTypePower, gpu.FailureTypeGPUThermal},
 		},
 		{
 			// test critical to warning

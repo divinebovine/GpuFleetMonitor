@@ -20,11 +20,11 @@ func TestSpecForModelKnownModels(t *testing.T) {
 			t.Errorf("%s: unexpected error: %v", tc.model, err)
 			continue
 		}
-		if spec.maxPowerWatts != tc.maxPowerWatts {
-			t.Errorf("%s: expected maxPowerWatts %.1f, got %.1f", tc.model, tc.maxPowerWatts, spec.maxPowerWatts)
+		if spec.MaxPowerWatts != tc.maxPowerWatts {
+			t.Errorf("%s: expected maxPowerWatts %.1f, got %.1f", tc.model, tc.maxPowerWatts, spec.MaxPowerWatts)
 		}
-		if spec.memoryBytes != tc.memoryBytes {
-			t.Errorf("%s: expected memoryBytes %d, got %d", tc.model, tc.memoryBytes, spec.memoryBytes)
+		if spec.MemoryBytes != tc.memoryBytes {
+			t.Errorf("%s: expected memoryBytes %d, got %d", tc.model, tc.memoryBytes, spec.MemoryBytes)
 		}
 	}
 }

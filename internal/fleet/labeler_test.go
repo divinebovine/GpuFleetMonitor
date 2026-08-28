@@ -73,12 +73,12 @@ func TestLabeler(t *testing.T) {
 					GPUCount: 8,
 				},
 				{
-					NodeName: nodes[6],
+					NodeName: nodes[3],
 					Model:    a30,
 					GPUCount: 8,
 				},
 				{
-					NodeName: nodes[7],
+					NodeName: nodes[4],
 					Model:    v100,
 					GPUCount: 4,
 				},

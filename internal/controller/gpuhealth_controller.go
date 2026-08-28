@@ -451,6 +451,10 @@ func (r *GPUHealthReconciler) handleRemediation(ctx context.Context, gpuCR *v1al
 }
 
 func (r *GPUHealthReconciler) handleRemediationPolicyDrain(ctx context.Context, gpuCR *v1alpha1.GPUHealth) (ctrl.Result, error) {
+	if err := r.cordonNode(ctx, gpuCR); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	if gpuCR.Status.ObservedGeneration < gpuCR.Generation {
 		// reset remediation policies on spec change
 		gpuCR.Status.RemediationAttempts = 0

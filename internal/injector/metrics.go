@@ -14,15 +14,15 @@ import (
 // Implementations must be safe for concurrent use: the HTTP handler serving
 // /metrics reads while the tick loop writes.
 type MetricsRecorder interface {
-	Record(entityID uint, fieldID uint16, value float64)
+	Record(entityID uint, fieldID FieldID, value float64)
 }
 
 type MetricsRecorderImpl struct {
 	mu            sync.RWMutex
 	modelByEntity map[uint]string
-	values        map[uint16]map[uint]float64 // fieldID -> entityID -> current value
-	descs         map[uint16]*prometheus.Desc
-	valueTypes    map[uint16]prometheus.ValueType // counter, gauge, etc.
+	values        map[FieldID]map[uint]float64 // fieldID -> entityID -> current value
+	descs         map[FieldID]*prometheus.Desc
+	valueTypes    map[FieldID]prometheus.ValueType // counter, gauge, etc.
 }
 
 // NewMetricsRecorder builds a MetricsRecorder that is also a valid
@@ -36,9 +36,9 @@ type MetricsRecorderImpl struct {
 func NewMetricsRecorder(modelByEntity map[uint]string) *MetricsRecorderImpl {
 	return &MetricsRecorderImpl{
 		modelByEntity: modelByEntity,
-		values:        initValues(metricsConfig),
-		descs:         initDescs(metricsConfig),
-		valueTypes:    initValueTypes(metricsConfig),
+		values:        initValues(simMetrics),
+		descs:         initDescs(simMetrics),
+		valueTypes:    initValueTypes(simMetrics),
 	}
 }
 
@@ -61,7 +61,7 @@ func (m *MetricsRecorderImpl) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func (m *MetricsRecorderImpl) Record(entityID uint, fieldID uint16, value float64) {
+func (m *MetricsRecorderImpl) Record(entityID uint, fieldID FieldID, value float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -70,4 +70,28 @@ func (m *MetricsRecorderImpl) Record(entityID uint, fieldID uint16, value float6
 	}
 
 	m.values[fieldID][entityID] = value
+}
+
+func initValues(config []simMetric) map[FieldID]map[uint]float64 {
+	out := make(map[FieldID]map[uint]float64)
+	for _, c := range config {
+		out[c.fieldID] = make(map[uint]float64)
+	}
+	return out
+}
+
+func initDescs(config []simMetric) map[FieldID]*prometheus.Desc {
+	out := make(map[FieldID]*prometheus.Desc)
+	for _, c := range config {
+		out[c.fieldID] = c.desc
+	}
+	return out
+}
+
+func initValueTypes(config []simMetric) map[FieldID]prometheus.ValueType {
+	out := make(map[FieldID]prometheus.ValueType)
+	for _, c := range config {
+		out[c.fieldID] = c.valueType
+	}
+	return out
 }

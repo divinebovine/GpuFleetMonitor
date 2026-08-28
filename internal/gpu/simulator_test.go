@@ -245,8 +245,8 @@ func TestDegradeToWarning(t *testing.T) {
 	}
 
 	// Thermal should be most common, then power, then ecc_single
-	if seen[FailureTypeThermal] < seen[FailureTypePower] {
-		t.Errorf("thermal should be more common than power: thermal=%d power=%d", seen[FailureTypeThermal], seen[FailureTypePower])
+	if seen[FailureTypeGPUThermal] < seen[FailureTypePower] {
+		t.Errorf("thermal should be more common than power: thermal=%d power=%d", seen[FailureTypeGPUThermal], seen[FailureTypePower])
 	}
 	if seen[FailureTypePower] < seen[FailureTypeECCSingle] {
 		t.Errorf("power should be more common than ecc_single: power=%d ecc_single=%d", seen[FailureTypePower], seen[FailureTypeECCSingle])
@@ -258,7 +258,7 @@ func TestWorsenToCritical(t *testing.T) {
 	t.Cleanup(func() { DefaultStore.SetState(id, StatusHealthy, FailureTypeNone) })
 
 	t.Run("always transitions to Critical", func(t *testing.T) {
-		DefaultStore.SetState(id, StatusWarning, FailureTypeThermal)
+		DefaultStore.SetState(id, StatusWarning, FailureTypeGPUThermal)
 		WorsenToCritical(id)
 		if s, _, _ := DefaultStore.GetState(id); s != StatusCritical {
 			t.Errorf("expected Critical, got %s", s)
@@ -269,9 +269,9 @@ func TestWorsenToCritical(t *testing.T) {
 		const trials = 1000
 		kept := 0
 		for range trials {
-			DefaultStore.SetState(id, StatusWarning, FailureTypeThermal)
+			DefaultStore.SetState(id, StatusWarning, FailureTypeGPUThermal)
 			WorsenToCritical(id)
-			if _, f, _ := DefaultStore.GetState(id); f == FailureTypeThermal {
+			if _, f, _ := DefaultStore.GetState(id); f == FailureTypeGPUThermal {
 				kept++
 			}
 		}
@@ -285,7 +285,7 @@ func TestWorsenToCritical(t *testing.T) {
 		const trials = 1000
 		gotDouble := 0
 		for range trials {
-			DefaultStore.SetState(id, StatusWarning, FailureTypeThermal)
+			DefaultStore.SetState(id, StatusWarning, FailureTypeGPUThermal)
 			WorsenToCritical(id)
 			if _, f, _ := DefaultStore.GetState(id); f == FailureTypeECCDouble {
 				gotDouble++
@@ -302,7 +302,7 @@ func TestRecoverToHealthy(t *testing.T) {
 	t.Cleanup(func() { DefaultStore.SetState(id, StatusHealthy, FailureTypeNone) })
 
 	t.Run("thermal recovers to healthy", func(t *testing.T) {
-		DefaultStore.SetState(id, StatusWarning, FailureTypeThermal)
+		DefaultStore.SetState(id, StatusWarning, FailureTypeGPUThermal)
 		RecoverToHealthy(id)
 		s, f, _ := DefaultStore.GetState(id)
 		if s != StatusHealthy {
@@ -339,13 +339,13 @@ func TestStepBackToWarning(t *testing.T) {
 	t.Cleanup(func() { DefaultStore.SetState(id, StatusHealthy, FailureTypeNone) })
 
 	t.Run("thermal steps back to warning preserving failure type", func(t *testing.T) {
-		DefaultStore.SetState(id, StatusCritical, FailureTypeThermal)
+		DefaultStore.SetState(id, StatusCritical, FailureTypeGPUThermal)
 		StepBackToWarning(id)
 		s, f, _ := DefaultStore.GetState(id)
 		if s != StatusWarning {
 			t.Errorf("expected Warning, got %s", s)
 		}
-		if f != FailureTypeThermal {
+		if f != FailureTypeGPUThermal {
 			t.Errorf("expected thermal failure type preserved, got %s", f)
 		}
 	})

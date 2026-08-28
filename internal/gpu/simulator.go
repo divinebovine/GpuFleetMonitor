@@ -34,7 +34,7 @@ func AllIDs() []string {
 func randomWarningFailure() FailureType {
 	switch r := rand.Float64(); {
 	case r < 0.50:
-		return FailureTypeThermal
+		return FailureTypeGPUThermal
 	case r < 0.80:
 		return FailureTypePower
 	default:
@@ -174,18 +174,18 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 	// Temperature is driven by the failure type, not just status.
 	// Thermal failures produce high temps; other failures run at normal temps.
 	tempStatus := StatusHealthy
-	if failure == FailureTypeThermal {
+	if failure == FailureTypeGPUThermal {
 		tempStatus = status
 	}
 	temperature := new(Temperature)
-	tMin, tMax := spec.temperature[tempStatus].Min, spec.temperature[tempStatus].Max
+	tMin, tMax := spec.GpuTemperatureRanges[tempStatus].Min, spec.GpuTemperatureRanges[tempStatus].Max
 	temperature.GPUCoreCelsius = tMin + (rand.Float64() * (tMax - tMin))
 	temperature.MemoryCelsius = temperature.GPUCoreCelsius - (10 + rand.Float64()*5)
-	temperature.GPUCoreWarningThreshold = spec.temperature[StatusWarning].Min
-	temperature.GPUCoreCriticalThreshold = spec.temperature[StatusCritical].Min
+	temperature.GPUCoreWarningThreshold = spec.GpuTemperatureRanges[StatusWarning].Min
+	temperature.GPUCoreCriticalThreshold = spec.GpuTemperatureRanges[StatusCritical].Min
 	temperature.MemoryWarningThreshold = 85.0
 	temperature.MemoryCriticalThreshold = 95.0
-	temperature.Throttling = failure == FailureTypeThermal
+	temperature.Throttling = failure == FailureTypeGPUThermal
 
 	// Power draw is elevated for power-cap failures; normal otherwise.
 	powerStatus := StatusHealthy
@@ -193,9 +193,9 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 		powerStatus = status
 	}
 	power := new(Power)
-	pMin, pMax := spec.power[powerStatus].Min, spec.power[powerStatus].Max
+	pMin, pMax := spec.Power[powerStatus].Min, spec.Power[powerStatus].Max
 	power.DrawWatts = pMin + (rand.Float64() * (pMax - pMin))
-	power.LimitWatts = spec.maxPowerWatts
+	power.LimitWatts = spec.MaxPowerWatts
 	power.Utilization = power.DrawWatts / power.LimitWatts * 100
 	power.PowerCapped = failure == FailureTypePower
 
@@ -206,7 +206,7 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 	var memoryEccDoubleBitErrors uint8
 
 	switch failure {
-	case FailureTypeThermal:
+	case FailureTypeGPUThermal:
 		if status == StatusCritical {
 			gpuUtilization = rand.Float64() * 20           // 0-20%, throttled to a crawl
 			memoryUtilization = (rand.Float64() * 20) + 40 // 40-60%
@@ -237,8 +237,8 @@ func GetHealth(_ context.Context, gpuID string) (*GPUHealth, error) {
 	}
 
 	memory := new(Memory)
-	memory.TotalBytes = spec.memoryBytes
-	memory.UsedBytes = uint64(float64(spec.memoryBytes) * memoryUtilization * .01)
+	memory.TotalBytes = spec.MemoryBytes
+	memory.UsedBytes = uint64(float64(spec.MemoryBytes) * memoryUtilization * .01)
 	memory.FreeBytes = memory.TotalBytes - memory.UsedBytes
 	memory.Utilization = memoryUtilization
 	memory.ECCSingleBitErrors = memoryEccSingleBitErrors

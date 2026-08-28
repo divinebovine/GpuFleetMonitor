@@ -7,30 +7,6 @@ import (
 	"github.com/divinebovine/GpuFleetMonitor/internal/gpu"
 )
 
-type GPUState struct {
-	EntityID    uint
-	Model       string
-	Status      gpu.HealthStatus
-	FailureType gpu.FailureType
-}
-
-// NewGPUStates builds the initial (all-Healthy) state for a node's fake
-// GPUs given their entity IDs and model.
-func NewGPUStates(entities []uint, model string) []GPUState {
-	out := make([]GPUState, 0, len(entities))
-
-	for _, e := range entities {
-		out = append(out, GPUState{
-			e,
-			model,
-			gpu.StatusHealthy,
-			gpu.FailureTypeNone,
-		})
-	}
-
-	return out
-}
-
 // Advance applies one tick of the transition logic (in place) mutating the states,
 // using the given SimulationSettings for transition rates.
 // Returns the subset of states whose FailureType is a hardware failure this tick
