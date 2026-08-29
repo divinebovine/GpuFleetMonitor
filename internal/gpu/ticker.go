@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"math/rand/v2"
+	"os"
 	"time"
 )
 
@@ -12,12 +13,15 @@ const (
 )
 
 type Ticker struct {
+	logger *slog.Logger
 }
 
 var DefaultTicker = NewTicker()
 
 func NewTicker() *Ticker {
-	t := &Ticker{}
+	t := &Ticker{
+		logger: slog.New(slog.NewJSONHandler(os.Stderr, nil)),
+	}
 	return t
 }
 
@@ -59,7 +63,7 @@ func (t *Ticker) Start(ctx context.Context) {
 							StepBackToWarning(id)
 						}
 					default:
-						slog.Error("unexpected GPU status in ticker", "gpu_id", id, "status", status)
+						t.logger.Error("unexpected GPU status in ticker", "gpu_id", id, "status", status)
 					}
 				}
 			case <-ctx.Done():

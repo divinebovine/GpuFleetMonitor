@@ -2,6 +2,7 @@ package injector
 
 import (
 	"fmt"
+	"log/slog"
 	"slices"
 
 	"github.com/NVIDIA/go-dcgm/pkg/dcgm"
@@ -12,23 +13,14 @@ import (
 // entity IDs in a stable order. Safe to call on every process start,
 // including after a crash-restart where entities from a previous
 // process instance may still be present in the hostengine.
-func EnsureFakeEntites(hostengineAddr string, gpuCount int) ([]uint, error) {
-	cleanup, err := dcgm.Init(dcgm.Standalone, hostengineAddr, "0")
-	defer cleanup()
-
-	if err != nil {
-		fmt.Printf("err initializing dcgm. err: %v\n", err)
-		return []uint{}, err
-	}
-	fmt.Println("dcgm initialized successfully")
-
-	fmt.Println("discovering existing fake entities...")
+func EnsureFakeEntites(gpuCount int) ([]uint, error) {
+	slog.Info("discovering existing fake entities...")
 	discovered, err := dcgm.GetSupportedDevices()
 	if err != nil {
-		fmt.Printf("failed discovering existing fake entities. err: %v\n", err)
+		slog.Error("failed discovering existing fake entities", "error", err)
 		return []uint{}, err
 	}
-	fmt.Printf("discovered devices: %v", discovered)
+	slog.Info("discovered devices", "devices", discovered)
 
 	entities := make([]dcgm.MigHierarchyInfo, 0)
 	for i := range gpuCount {
@@ -42,12 +34,12 @@ func EnsureFakeEntites(hostengineAddr string, gpuCount int) ([]uint, error) {
 		}
 	}
 
-	fmt.Printf("Creating %d requested fake entities...\n", len(entities))
+	slog.Info(fmt.Sprintf("Creating %d requested fake entities...", len(entities)))
 	created, err := dcgm.CreateFakeEntities(entities)
 	if err != nil {
 		return []uint{}, err
 	}
-	fmt.Printf("created devices: %v", created)
+	slog.Info("created devices", "created", created)
 
 	out := make([]uint, 0, gpuCount)
 	out = append(out, discovered...)

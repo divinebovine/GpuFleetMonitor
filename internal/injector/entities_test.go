@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NVIDIA/go-dcgm/pkg/dcgm"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -46,13 +47,21 @@ func TestMain(m *testing.M) {
 }
 
 func TestEnsureFakeEntitiesIdempotency(t *testing.T) {
+	cleanup, err := dcgm.Init(dcgm.Standalone, hostengineAddr, "0")
+	defer cleanup()
+
+	if err != nil {
+		t.Fatalf("err initializing dcgm. err: %v", err)
+		return
+	}
+
 	gpuCount := 10
-	eIds1, err := EnsureFakeEntites(hostengineAddr, gpuCount)
+	eIds1, err := EnsureFakeEntites(gpuCount)
 	if err != nil {
 		t.Fatalf("failed creating entities. err: %v", err)
 	}
 
-	eIds2, err := EnsureFakeEntites(hostengineAddr, gpuCount)
+	eIds2, err := EnsureFakeEntites(gpuCount)
 	if err != nil {
 		t.Fatalf("failed creating entities. err: %v", err)
 	}

@@ -3,7 +3,9 @@ package injector
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/NVIDIA/go-dcgm/pkg/dcgm"
@@ -21,7 +23,8 @@ type Ticker struct {
 	// inject, so a persistent failure (e.g. a dead hostengine connection)
 	// logs once on the transition into failure instead of flooding the
 	// log on every tick for every field on every GPU.
-	failing map[injectKey]bool
+	failing  map[injectKey]bool
+	lastTick atomic.Int64 // used for health checks to make sure the ticker hasn't hung
 }
 
 type injectKey struct {
@@ -71,6 +74,8 @@ func (t *Ticker) Run(ctx context.Context, states []GPUState, getCfg func() *gpu.
 					}
 				}
 			}
+
+			t.lastTick.Store(time.Now().UnixNano())
 
 		case <-ctx.Done():
 			return ctx.Err()
@@ -130,4 +135,13 @@ func (t *Ticker) logInjectResult(entityID uint, fieldID FieldID, err error) {
 		delete(t.failing, key)
 		t.logger.Info("InjectFieldValue recovered", "entityID", entityID, "fieldID", fieldID)
 	}
+}
+
+func (t *Ticker) HealthzHandler(w http.ResponseWriter, r *http.Request) {
+	last := time.Unix(0, t.lastTick.Load())
+	if time.Since(last) > Base*3 {
+		http.Error(w, "tick loop stalled", http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
